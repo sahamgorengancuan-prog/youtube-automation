@@ -102,6 +102,60 @@ class PreviewConfig(ConfigModel):
     thumb_height: int = 640
 
 
+class VoiceConfig(ConfigModel):
+    # Phase 2. Edge TTS (free, online) primary; espeak-ng offline fallback.
+    provider: str = "edge"
+    voice: str = "en-US-GuyNeural"
+    rate: str = "+8%"
+    pitch: str = "+0Hz"
+    local_voice: str = "en-us"
+    local_words_per_minute: int = 175
+    scene_tail_silence: float = 0.18
+    sample_rate: int = 48000
+
+
+class CaptionConfig(ConfigModel):
+    enabled: bool = True
+    font_name: str = "DejaVu Sans"
+    font_size: int = 56
+    max_words: int = 4
+    max_chars: int = 25
+    margin_left: int = 70
+    margin_right: int = 70
+    margin_vertical: int = 285
+    primary_color: str = "&H00FFFFFF"
+    outline_color: str = "&H00101010"
+    back_color: str = "&H98000000"
+
+
+class AudioConfig(ConfigModel):
+    background_enabled: bool = True
+    music_volume: float = 0.10
+    sfx_enabled: bool = True
+    sfx_volume: float = 0.22
+    voice_loudness_lufs: float = -16.0
+
+
+class RenderConfig(ConfigModel):
+    width: int = 1080
+    height: int = 1920
+    fps: int = 30
+    crf: int = 19
+    preset: str = "veryfast"
+    pixel_format: str = "yuv420p"
+    audio_bitrate: str = "192k"
+    scene_fade_seconds: float = 0.06
+    cleanup_temporary_files: bool = False
+    validate_output: bool = True
+
+
+class SEOConfig(ConfigModel):
+    enabled: bool = True
+    max_title_chars: int = 70
+    hashtag_count: int = 5
+    tag_count: int = 16
+
+
 class StudioConfig(ConfigModel):
     project: ProjectConfig = Field(default_factory=ProjectConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
@@ -113,6 +167,11 @@ class StudioConfig(ConfigModel):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     svg: SVGConfig = Field(default_factory=SVGConfig)
     preview: PreviewConfig = Field(default_factory=PreviewConfig)
+    voice: VoiceConfig = Field(default_factory=VoiceConfig)
+    captions: CaptionConfig = Field(default_factory=CaptionConfig)
+    audio: AudioConfig = Field(default_factory=AudioConfig)
+    render: RenderConfig = Field(default_factory=RenderConfig)
+    seo: SEOConfig = Field(default_factory=SEOConfig)
 
 
 DEFAULT_CONFIG = StudioConfig().model_dump(mode="json")

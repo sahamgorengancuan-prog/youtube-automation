@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from .hashing import atomic_write_json
-from .schemas import ResearchBundle, RunManifest, ScriptPackage, Storyboard, ValidationReport
+from .schemas import AudioTimeline, ResearchBundle, RunManifest, ScriptPackage, SEOPackage, Storyboard, ValidationReport
 
 
 class Exporter:
@@ -14,8 +14,9 @@ class Exporter:
       research/{research.json, validation.json}
       scripts/script.json
       storyboards/storyboard.json
-      assets/<asset_id>.svg
-      scenes/<scene_id>.svg
+      audio/timeline.json          metadata/seo.json
+      assets/<asset_id>.svg        scenes/<scene_id>.svg
+      video/short.mp4              captions/{captions.srt, captions.ass}
       manifest.json  (+ a zipped copy of the whole run)
     """
 
@@ -29,22 +30,29 @@ class Exporter:
         validation: ValidationReport,
         script: ScriptPackage,
         storyboard: Storyboard,
+        timeline: AudioTimeline,
+        seo: SEOPackage,
     ) -> dict[str, str]:
         research_dir = run_dir / "research"
         scripts_dir = run_dir / "scripts"
         storyboard_dir = run_dir / "storyboards"
-        for directory in (research_dir, scripts_dir, storyboard_dir):
+        metadata_dir = run_dir / "metadata"
+        for directory in (research_dir, scripts_dir, storyboard_dir, metadata_dir):
             directory.mkdir(parents=True, exist_ok=True)
         files = {
             "research": research_dir / "research.json",
             "validation": research_dir / "validation.json",
             "script": scripts_dir / "script.json",
             "storyboard": storyboard_dir / "storyboard.json",
+            "audio_timeline": run_dir / "audio" / "timeline.json",
+            "seo": metadata_dir / "seo.json",
         }
         atomic_write_json(files["research"], research)
         atomic_write_json(files["validation"], validation)
         atomic_write_json(files["script"], script)
         atomic_write_json(files["storyboard"], storyboard)
+        atomic_write_json(files["audio_timeline"], timeline)
+        atomic_write_json(files["seo"], seo)
         return {key: str(path) for key, path in files.items()}
 
     def copy_assets(self, run_dir: Path, asset_paths: dict[str, Path]) -> dict[str, str]:

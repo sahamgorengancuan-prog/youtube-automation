@@ -174,6 +174,59 @@ class Storyboard(StudioModel):
 
 
 # --------------------------------------------------------------------------- #
+# Phase 2 — audio, captions, render, SEO
+# --------------------------------------------------------------------------- #
+class AudioClip(StudioModel):
+    scene_id: str
+    text: str
+    path: str
+    start_s: float
+    end_s: float
+    duration_s: float
+    provider: str
+    audio_hash: str
+
+
+class AudioTimeline(StudioModel):
+    clips: list[AudioClip]
+    voice_track: str
+    duration_s: float
+    timeline_hash: str
+
+
+class CaptionSegment(StudioModel):
+    index: int
+    text: str
+    start_s: float
+    end_s: float
+    scene_id: str
+
+
+class SEOPackage(StudioModel):
+    title: str
+    description: str
+    hashtags: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    filename: str = "short.mp4"
+    seo_score: int = 0
+
+
+class RenderReport(StudioModel):
+    video_path: str
+    width: int
+    height: int
+    fps: float
+    duration_s: float
+    video_codec: str
+    audio_codec: str | None = None
+    has_audio: bool = False
+    file_size_bytes: int = 0
+    render_hash: str = ""
+    passed: bool = False
+    checks: list[str] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # Cache + run bookkeeping
 # --------------------------------------------------------------------------- #
 class AssetMetadata(StudioModel):
@@ -207,3 +260,5 @@ class RunManifest(StudioModel):
     validation_passed: bool = False
     estimated_duration_s: float = 0.0
     warnings: list[str] = Field(default_factory=list)
+    video_hash: str | None = None
+    render_report: dict[str, Any] | None = None
