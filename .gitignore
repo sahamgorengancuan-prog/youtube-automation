@@ -1,0 +1,11 @@
+# Runtime project root created by the notebook / pipeline
+autonomous_scientific_animation_studio/
+output/
+cache/
+logs/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/

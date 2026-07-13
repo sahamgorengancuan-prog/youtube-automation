@@ -1,0 +1,16 @@
+# Autonomous Scientific Animation Studio — MVP (Phase 1) dependencies.
+# The notebook installs these itself; this file is for local / FastAPI / Docker use.
+transformers>=4.48,<5
+accelerate>=1.2,<2
+bitsandbytes>=0.45,<1
+pydantic>=2.10,<3
+PyYAML>=6,<7
+requests>=2.32,<3
+ddgs>=9,<10
+feedparser>=6,<7
+tenacity>=9,<10
+tqdm>=4.67,<5
+svgwrite>=1.4,<2
+CairoSVG>=2.7,<3
+Pillow>=10,<13
+openai>=1.60,<3
