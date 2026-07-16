@@ -1,0 +1,1064 @@
+{
+  "passed": true,
+  "count": 211,
+  "regression_count": 92,
+  "final_count": 119,
+  "tests": [
+    {
+      "name": "canon identity locked",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "canon forbids procedural hero",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "canon has stable palette",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "canon motion defaults hold",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bible embeds locked canon",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "LLM cannot rename canon",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "scene is beauty-first",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "scene forbids procedural hero",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "brief is scene-first",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "brief hard-codes line system",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "brief forbids office-shape look",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "brief uses stable seed policy",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "procedural hero brief rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "vague revision order rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "concrete director revision accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "semantic split after approval",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "beauty pixels preserved",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mask extracted without redrawing beauty",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "beauty base never animated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no default camera motion",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "motion has causal reason",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "hybrid package keeps raster beauty",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "SVG limited to overlay",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "remotion supports raster layers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "remotion supports replacement poses",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "deterministic H264 preview renders",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "prompt stack compiled",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "prompt diagnostics pass",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "prompt is natural language not JSON",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "prompt length is directed not bloated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "style stated before scene detail",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Kontext prompt upsampling disabled",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "single input strategy recorded",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "style fingerprint is immutable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "style hash identical across scenes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "scene delta changes without style reset",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "previous approved scene drives continuity",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "director changes become sequential local passes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision chain uses prior pass",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision explicitly scopes target",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision explicitly preserves unaffected image",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision avoids vague quality language",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "revision prompts stay concise",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "pose edit uses approved frame",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "pose edit is local and preservation-first",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Flux request manifest exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "request contains one compiled prompt",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "request locks prompt parameters",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "director comparison board generated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "BFL mock request succeeds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "BFL downloaded image is a valid PNG",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "BFL payload uses Kontext input image",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "BFL payload locks deterministic prompt policy",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "BFL safe manifest excludes base64",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "V9.1 regression retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "provider registry resolves priority",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "provider snapshot exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "missing provider fails explicitly",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "content cache JSON roundtrip",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "content cache file roundtrip",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job stage first execution",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job stage resume reuses output",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job input change reruns stage",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job manifest completed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "asset registry get",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic selector retrieves identity reference",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic selector excludes future continuity",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "reference board built",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "character registry persists views",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "shot state defines first and last",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "hold shot does not request control sketch",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "candidate tournament generates four",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "candidate tournament unique seeds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "candidate tournament selects valid winner",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "candidate comparison board exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "control sketch pair generated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "deterministic temporal clip encoded",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "unconfigured sketch backend unavailable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "router chooses deterministic for simple",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "organic motion never degrades to still compositor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "temporal clip replaces beauty layer",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Remotion supports temporal video layer",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full V10 plan-only pipeline completed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full pipeline emits shot states",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full pipeline emits reference selections",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full pipeline emits candidate plans",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full pipeline emits persistent job manifest",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full live fixture reaches live_generation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full live fixture creates beauty frames",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full live fixture creates semantic contracts",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full live fixture creates candidate tournaments",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "full live fixture persists approved assets",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production lock rejects {\"provider_order\": [\"openai\", \"gemini\"]}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production lock rejects {\"provider_order\": [\"openrouter\"]}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production lock rejects {\"provider_order\": [\"openai\"], \"vision_provider_order\": [\"op",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production lock rejects {\"provider_order\": [\"openai\"], \"enable_local_fallback\": true",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production lock rejects {\"provider_order\": [\"openai\"], \"image_provider\": \"openai\"}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production lock rejects {\"provider_order\": [\"openai\"], \"gemini_image_model\": \"imagen",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "valid production config accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "mode propagates into llm config",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "development is the default mode",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"llm\": {\"bfl_model\": \"sdxl\"}}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"llm\": {\"bfl_base_url\": \"http://api.bfl.ai/v1\"}}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"llm\": {\"bfl_aspect_ratio\": \"1:9\"}}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"llm\": {\"bfl_output_format\": \"webp\"}}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"llm\": {\"openai_reasoning_effort\": \"extreme\"}}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"render\": {\"backend\": \"imovie\"}}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config rejects {\"workspace\": \"   \"}",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production rejects shell temporal command without override",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sk- key pattern redacted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bearer token redacted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "x-key header redacted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "uuid after key context redacted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "secret-named dict keys redacted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "numeric token-usage metadata survives redaction",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "registered exact secret scrubbed anywhere",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "plain http rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "non-allowlisted host rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wildcard host accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "empty allowlist refuses outbound",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "429 is retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "408 is retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "409 is retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "503 is retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "401 is not retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "422 is not retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "exception with 401 not retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "exception with 429 retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "timeout-class exception retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "backoff grows exponentially and caps",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "retry loop recovers after 429s",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "401 fails fast without retries",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "atomic save leaves no temp files",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "corrupt json returns default and quarantines",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cache key changes with model",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fallback cache key is namespaced",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "corrupt cache entry treated as miss",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "path traversal outside base rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "path inside base accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "extract_json parses fenced JSON",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "extract_json handles nested braces",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "argv template blocks shell injection",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "unknown placeholder rejected explicitly",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production rejects shell path without security override",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stage executes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "resume reuses completed output",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tampered artifact checksum forces re-run",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "running stage recovered as interrupted then re-runnable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "interrupted stage re-executes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config change marks completed stages stale",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stale stage re-executes after config change",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "same-process lock is re-entrant",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "live foreign lock rejects concurrent worker",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stale lock from dead pid reclaimed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stage retry budget enforced",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "manifest stores typed redacted error, no traceback",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "valid image downloads atomically",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "download rejects html body",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "download rejects json error body",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "download rejects empty body",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "download rejects corrupt image",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "download rejects oversized declared payload",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "download rejects payload above byte cap",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production text fails clearly without OpenAI",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production filters provider order to openai",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production never calls unauthorized providers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production vision fails clearly without OpenAI",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production image generation requires BFL",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "production rejects injected fake providers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "development fallback returns the fallback value",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fallback cached in separate namespace with marker",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "fallback never cached as live success",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "expired fallback cache is not reused",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "vision critique returns provider output",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "vision cache hit on identical content",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "changed pixels invalidate vision cache (content hash, not name/size)",
+      "passed": true,
+      "detail": "size_before=843 size_after=842"
+    },
+    {
+      "name": "openai success parses JSON",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "malformed JSON repaired via bounded retry",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "empty output retried then succeeds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "429 then success recovers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "401 fails fast without retry",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl submit/poll/download success",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl metadata records request id + hashes, no base64",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl content-addressed cache hit skips network",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl 429 then success recovers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl poll timeout fails explicitly",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl moderated result fails explicitly",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl unknown status fails explicitly",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl corrupt image rejected and never cached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl wrong content-type rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl oversized download rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl unsafe result URL rejected (SSRF)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl invalid model rejected pre-flight",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bfl invalid aspect ratio rejected pre-flight",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "e2e offline run renders",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "e2e video exists",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "e2e video is valid H.264",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "e2e manifest completed with schema version",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "provenance manifest exists with providers locked",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "provenance video hash matches artifact",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "rerun is idempotent (no stage re-execution)",
+      "passed": true,
+      "detail": "before={'01_style_reference': 1, '02_research': 1, '03_script': 1, '04_storyboard': 1, '06_art_bible': 1, '07_continuity_canon': 1, '08_scene_architectures': 1, '09_shot_state_SC01': 1, '09_shot_state_SC02': 1, '09_shot_state_SC03': 1, '09_shot_state_SC04': 1, '09_shot_state_SC05': 1, '09_shot_state_SC06': 1, '09_shot_state_SC07': 1, '09_shot_state_SC08': 1} after={'01_style_reference': 1, '02_research': 1, '03_script': 1, '04_storyboard': 1, '06_art_bible': 1, '07_continuity_canon': 1, '08_scene_architectures': 1, '09_shot_state_SC01': 1, '09_shot_state_SC02': 1, '09_shot_state_SC03': 1, '09_shot_state_SC04': 1, '09_shot_state_SC05': 1, '09_shot_state_SC06': 1, '09_shot_state_SC07': 1, '09_shot_state_SC08': 1}"
+    },
+    {
+      "name": "cli --help documents plan-only default",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cli missing args exits 2",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cli missing config exits 2",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cli plan-only smoke exits 0",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cli prints plan-only result manifest",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "api 404 for unknown job",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "api 400 for missing reference video",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "api 422 for too-short topic",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "api 202 accepted with job id",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "api job completes with plan-only mode",
+      "passed": true,
+      "detail": "{\"job_id\": \"api-smoke\", \"status\": \"completed\", \"mode\": \"plan_only\", \"video\": \"\", \"error_type\": \"\", \"error_message\": \"\"}"
+    }
+  ],
+  "root": "v10_final_validation"
+}

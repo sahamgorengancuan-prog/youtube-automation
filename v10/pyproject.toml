@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scientific-motion-studio-v10"
+version = "10.1.0"
+description = "Agentic scientific editorial animation pipeline: OpenAI GPT reasoning, BFL FLUX Kontext art generation, resumable job runtime, hybrid Remotion rendering"
+readme = "README.md"
+license = { text = "Proprietary" }
+requires-python = ">=3.11"
+keywords = ["animation", "flux-kontext", "openai", "remotion", "science-communication"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+]
+# Default install covers the documented production path: OpenAI GPT
+# reasoning + BFL FLUX Kontext image generation.
+dependencies = [
+    "pydantic>=2.7",
+    "Pillow>=10.0",
+    "requests>=2.31",
+    "openai>=1.68",
+]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.115", "uvicorn>=0.30"]
+webui = ["streamlit>=1.36"]
+render = ["cairosvg>=2.7"]
+local-models = [
+    "torch>=2.2",
+    "transformers>=4.44",
+    "diffusers>=0.32",
+    "accelerate>=1.2",
+    "safetensors>=0.4",
+    "sentencepiece",
+    "protobuf",
+]
+dev = [
+    "ruff>=0.6",
+    "build>=1.2",
+    "coverage>=7.4",
+    "pytest>=8.0",
+]
+test = ["nbclient>=0.10", "nbformat>=5.10", "coverage>=7.4", "pytest>=8.0", "fastapi>=0.115", "httpx>=0.27"]
+
+[project.scripts]
+scistudio-v10 = "scistudio_v10.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["scistudio_v10*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+ignore = [
+    "E501",  # long prompt strings are intentional
+    "B008",  # FastAPI-style call defaults
+    "UP035", "UP006", "UP007",  # keep 3.11-friendly typing forms
+    "B905",  # zip truncation across scene lists is intentional
+    "UP042",  # (str, Enum) kept for broad pydantic compatibility
+]
+
+[tool.coverage.run]
+source = ["scistudio_v10"]
+omit = ["scistudio_v10/webui.py"]

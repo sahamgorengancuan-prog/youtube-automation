@@ -1,0 +1,49 @@
+{
+  "workspace": "./scientific_motion_studio_v10",
+  "execution_mode": "production",
+  "research_search": {"enabled": true},
+  "llm": {
+    "provider_order": ["openai"],
+    "vision_provider_order": ["openai"],
+    "openai_model": "gpt-5-mini",
+    "openai_reasoning_effort": "low",
+    "openai_max_output_tokens": 8000,
+    "image_provider": "bfl",
+    "bfl_model": "flux-kontext-pro",
+    "bfl_base_url": "https://api.bfl.ai/v1",
+    "bfl_aspect_ratio": "9:16",
+    "bfl_prompt_upsampling": false,
+    "bfl_safety_tolerance": 2,
+    "bfl_output_format": "png",
+    "bfl_timeout": 240,
+    "bfl_poll_interval": 1.5,
+    "bfl_allowed_url_hosts": ["api.bfl.ai", "*.bfl.ai"],
+    "retry": {"max_attempts": 4, "base_delay_s": 1.0, "max_delay_s": 30.0, "jitter": 0.25}
+  },
+  "limits": {"max_stage_attempts": 5, "max_concurrent_jobs": 1},
+  "providers": [
+    {"provider_id":"flux-kontext-pro","provider_type":"image","implementation":"bfl","priority":10,"capabilities":[{"name":"reference_edit","available":true,"supports_images":true}]},
+    {"provider_id":"vision-director","provider_type":"vision","implementation":"llm-router","priority":10,"capabilities":[{"name":"art_direction","available":true,"supports_images":true}]},
+    {"provider_id":"sketch-video-local","provider_type":"temporal_video","implementation":"external-command","priority":20,"enabled":false,"capabilities":[{"name":"two_keyframe_sketch_control","available":true,"supports_video":true}]},
+    {"provider_id":"remotion","provider_type":"renderer","implementation":"remotion","priority":10,"capabilities":[{"name":"hybrid_compositing","available":true,"supports_video":true}]}
+  ],
+  "audio": {"voice":"en-US-GuyNeural","rate":"+6%","build_in_plan_mode":false},
+  "drawing": {
+    "model":"flux-kontext-pro","aspect_ratio":"9:16","seed_base":240921,
+    "prompt_upsampling":false,"safety_tolerance":2,"output_format":"png",
+    "min_initial_prompt_words":80,"max_initial_prompt_words":380,
+    "max_edit_prompt_words":180,"max_adjustments_per_pass":1
+  },
+  "candidate_tournament": {"candidate_count":4},
+  "references": {"maximum_retrieved_assets":8},
+  "flux_studio": {"maximum_director_revisions":3,"require_vision_director":true},
+  "semantic": {"require_approved_beauty":true},
+  "temporal": {
+    "enabled": true,
+    "use_for_articulated": false,
+    "backend_preference": ["sketch-controlled-video", "deterministic-compositor"],
+    "sketch_backend": {"argv": [], "allow_shell": false, "timeout_s": 1800}
+  },
+  "render": {"backend":"remotion","install_dependencies":true,"crf":18},
+  "publishing": {"enabled": false, "provider": "local-archive", "allowed_hosts": []}
+}
