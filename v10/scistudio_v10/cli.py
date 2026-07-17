@@ -15,7 +15,7 @@ from pathlib import Path
 from .config_models import StudioConfig
 from .security import redact_secrets, redacted_exception_text
 
-__version__ = "10.1.0"
+__version__ = "10.2.0"
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -75,3 +75,60 @@ class StageRetryExhaustedError(StudioError):
 
 class UnsafeCommandError(StudioError):
     """A temporal/external command configuration was rejected as unsafe."""
+
+
+class PreflightError(StudioError):
+    """A preflight check with FAIL status blocked the requested action."""
+
+
+class ProviderAuthenticationError(ProviderError):
+    """The provider rejected the credentials (401/403); never retried."""
+
+
+class ProviderRateLimitError(ProviderError):
+    """The provider rate-limited the request (429) beyond the retry budget."""
+
+
+class ProviderTimeoutError(ProviderError):
+    """The provider did not answer within the configured deadline."""
+
+
+class ReferenceVideoError(StudioError):
+    """The reference video is missing, unreadable or has an unsupported format."""
+
+
+class RenderDependencyError(PreflightError):
+    """A rendering dependency (Node/npm/npx/FFmpeg) required by the selected
+    backend is unavailable."""
+
+
+class PipelineStageError(StudioError):
+    """A pipeline stage failed; carries the failing stage id."""
+
+    def __init__(self, message: str, *, stage_id: str = ""):
+        super().__init__(message)
+        self.stage_id = stage_id
+
+
+class PublishingError(StudioError):
+    """Publishing the final artifact failed."""
+
+
+class JobCancelledError(StudioError):
+    """The run was cancelled by the user; it stopped after the last safe
+    stage and can be resumed with the same job id."""
+
+
+def classify_provider_error(exc: BaseException) -> BaseException:
+    """Translate a generic ProviderError into a more specific class for
+    user-facing display, based on its status code. Returns the original
+    exception when no better classification exists."""
+    status = getattr(exc, "status_code", None)
+    provider = getattr(exc, "provider", "")
+    if status in (401, 403):
+        return ProviderAuthenticationError(str(exc), provider=provider, status_code=status)
+    if status == 429:
+        return ProviderRateLimitError(str(exc), provider=provider, retryable=True, status_code=status)
+    if status == 408 or "timed out" in str(exc).lower():
+        return ProviderTimeoutError(str(exc), provider=provider, retryable=True, status_code=status)
+    return exc

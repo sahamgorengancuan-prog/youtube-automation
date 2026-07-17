@@ -73,7 +73,16 @@ class ResumableJobRuntime:
         config: dict[str, Any],
         max_stage_attempts: int = 5,
         debug_tracebacks: bool = False,
+        on_stage_event: Any | None = None,
+        cancellation_token: Any | None = None,
     ):
+        # on_stage_event(stage_id, event, record_dict) is invoked on
+        # "cached", "started", "completed" and "failed"; it must never raise
+        # into the pipeline. cancellation_token exposes a truthy `.cancelled`
+        # checked BEFORE each stage — a set token stops after the current
+        # safe stage (never mid-provider-request).
+        self.on_stage_event = on_stage_event
+        self.cancellation_token = cancellation_token
         self.run_dir = ensure_dir(run_dir)
         self.manifest_path = self.run_dir / "job_manifest.json"
         self.lock_path = self.run_dir / "job.lock"
@@ -177,12 +186,20 @@ class ResumableJobRuntime:
         *,
         force: bool = False,
     ) -> Any:
+        if self.cancellation_token is not None and getattr(self.cancellation_token, "cancelled", False):
+            from .errors import JobCancelledError
+
+            self._emit_stage_event(stage_id, "cancelled", None)
+            raise JobCancelledError(
+                f"Run cancelled before stage {stage_id}; the job is resumable with the same job id."
+            )
         input_hash = hash_value(input_payload, 32)
         current = self.manifest.stages.get(stage_id)
         if current and current.status == "completed" and current.input_hash == input_hash and not force:
             output_path = Path(current.output_path) if current.output_path else None
             if output_path and output_path.exists():
                 if not current.output_sha256 or sha256_file(output_path) == current.output_sha256:
+                    self._emit_stage_event(stage_id, "cached", current)
                     return load_json(output_path)
                 # Artifact was modified/corrupted after completion: re-run.
                 self._transition(current, "stale")
@@ -203,6 +220,7 @@ class ResumableJobRuntime:
         self.manifest.stages[stage_id] = record
         self.manifest.status = "running"
         self._save()
+        self._emit_stage_event(stage_id, "started", record)
         try:
             result = fn()
             serializable = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
@@ -214,6 +232,7 @@ class ResumableJobRuntime:
             record.output_path = str(output)
             record.output_sha256 = sha256_file(output)
             self._save()
+            self._emit_stage_event(stage_id, "completed", record)
             return serializable
         except Exception as exc:
             self._transition(record, "failed")
@@ -227,8 +246,20 @@ class ResumableJobRuntime:
                 record.metadata["traceback_file"] = str(debug_path)
             self.manifest.status = "failed"
             self._save()
+            self._emit_stage_event(stage_id, "failed", record)
             self.release_lock()
             raise
+
+    def _emit_stage_event(self, stage_id: str, event: str, record: StageRecord | None) -> None:
+        """Deliver a stage event to the optional observer; observer failures
+        are swallowed so UI callbacks can never break the pipeline."""
+        if self.on_stage_event is None:
+            return
+        try:
+            payload = record.model_dump(mode="json") if record is not None else {}
+            self.on_stage_event(stage_id, event, payload)
+        except Exception:
+            pass
 
     # -- terminal states ---------------------------------------------------------
     def mark_completed(self) -> None:

@@ -44,7 +44,7 @@ from .schemas import (
 from .style_canon import build_hard_coded_canon
 from .temporal_backends import TemporalBackendRouter
 
-__version__ = "10.1.0"
+__version__ = "10.2.0"
 
 __all__ = [
     "AnimationPlan",

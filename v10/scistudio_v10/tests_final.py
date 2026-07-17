@@ -1225,12 +1225,16 @@ def run_all_tests(root: str | Path | None = None) -> dict[str, Any]:
     base = _fresh_root(root, "scistudio_all_tests_")
     legacy = run_v10_regression_tests(base / "regression")
     final = run_final_validation_tests(base / "final")
+    from .tests_notebook import run_notebook_tests
+
+    notebook = run_notebook_tests(base / "notebook")
     return {
-        "passed": bool(legacy["passed"] and final["passed"]),
-        "count": legacy["count"] + final["count"],
+        "passed": bool(legacy["passed"] and final["passed"] and notebook["passed"]),
+        "count": legacy["count"] + final["count"] + notebook["count"],
         "regression_count": legacy["count"],
         "final_count": final["count"],
-        "tests": [*legacy["tests"], *final["tests"]],
+        "notebook_count": notebook["count"],
+        "tests": [*legacy["tests"], *final["tests"], *notebook["tests"]],
         "root": str(base),
     }
 

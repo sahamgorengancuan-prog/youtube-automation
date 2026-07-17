@@ -1,8 +1,9 @@
 {
   "passed": true,
-  "count": 211,
+  "count": 263,
   "regression_count": 92,
   "final_count": 119,
+  "notebook_count": 52,
   "tests": [
     {
       "name": "canon identity locked",
@@ -1058,6 +1059,266 @@
       "name": "api job completes with plan-only mode",
       "passed": true,
       "detail": "{\"job_id\": \"api-smoke\", \"status\": \"completed\", \"mode\": \"plan_only\", \"video\": \"\", \"error_type\": \"\", \"error_message\": \"\"}"
+    },
+    {
+      "name": "preset valid: Safe Development",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset valid: Offline Smoke Test",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset valid: Production Plan-Only",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset provider-locked: Production Plan-Only",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset valid: Production Live Generation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset provider-locked: Production Live Generation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset valid: Production Full Render",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset provider-locked: Production Full Render",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset valid: Low-Cost Live Smoke",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset provider-locked: Low-Cost Live Smoke",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preset valid: Resume Existing Job",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ui config serialization round-trip",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job id readable and directory-safe",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job id stable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "reference rejected: missing file",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "reference rejected: invalid extension",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "invalid config reports field errors",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "paid run blocked without checkbox",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "paid run blocked without confirmation phrase",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "missing API key handled before pipeline",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "live smoke blocked without confirmation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preflight FAILs on missing ffmpeg",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "preflight FAILs on missing npm/npx for remotion",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "network check skipped offline",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "stage progress maps shot-state wildcard",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "all actions dispatchable through one controller",
+      "passed": true,
+      "detail": "['preflight', 'validate_config', 'quick_smoke', 'offline_tests', 'provider_smoke', 'pipeline:plan_only', 'pipeline:development_dry_run', 'pipeline:production_plan', 'pipeline:live_generation', 'pipeline:live_generation_preview', 'pipeline:full_production_render', 'pipeline:resume_job', 'pipeline:force_rerun', 'package']"
+    },
+    {
+      "name": "quick smoke passes without API keys",
+      "passed": true,
+      "detail": "{\"passed\": true, \"manifest_status\": \"completed\", \"artifacts_ok\": true, \"resume_used_cache\": true, \"redaction_ok\": true, \"stage_events\": 30, \"run_dir\": \"v10_final_validation/notebook/workspace/smoke_tests/20260717T100447/studio/jobs/quick-smoke\"}"
+    },
+    {
+      "name": "quick smoke resume used cache",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "plan-only run completes via controller",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "progress callback captured stage events",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "run_request + resolved_config persisted (redacted)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "resume reuses manifest and cache",
+      "passed": true,
+      "detail": "{\"elapsed_s\": 1.0, \"current_stage\": \"\", \"progress\": 0.0, \"completed\": [], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\", \"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"failed\": [], \"retries\": 0, \"event_count\": 15}"
+    },
+    {
+      "name": "cancellation stops before next safe stage",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cancelled job left resumable manifest",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "scoped force rerun re-executes selected stage",
+      "passed": true,
+      "detail": "{\"elapsed_s\": 1.1, \"current_stage\": \"09_shot_state_SC08\", \"progress\": 0.42857142857142855, \"completed\": [\"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\"], \"failed\": [], \"retries\": 12, \"event_count\": 27}"
+    },
+    {
+      "name": "scoped force rerun keeps earlier stages cached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "artifact ZIP generated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "zip rejects path traversal job ids",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "manual secret reported configured",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no secret written into reports/configs",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "manual secret redacted in errors",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "clear manual secrets works",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "package security sweep clean (incl. no /content)",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "legacy run() signature unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "notebook_ui imports outside Colab",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "headless fallback when ipywidgets missing",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "widget control center builds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "paid gate disables primary button until confirmed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "live action disables primary without confirmation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "confirmation enables primary",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "form config validates",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "form round-trips preset",
+      "passed": true,
+      "detail": ""
     }
   ],
   "root": "v10_final_validation"

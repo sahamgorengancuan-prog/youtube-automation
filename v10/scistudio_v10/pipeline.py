@@ -122,8 +122,18 @@ class ScientificMotionStudioV10:
         render_video: bool = False,
         force: bool = False,
         job_id: str | None = None,
+        progress_callback: Any | None = None,
+        cancellation_token: Any | None = None,
     ) -> dict[str, Any]:
-        """Execute the pipeline; the job lock is always released on exit."""
+        """Execute the pipeline; the job lock is always released on exit.
+
+        ``progress_callback(stage_id, event, record)`` (optional) receives
+        "cached"/"started"/"completed"/"failed" stage events and must not
+        raise. ``cancellation_token`` (optional) is any object with a truthy
+        ``cancelled`` attribute; setting it stops the run after the current
+        safe stage with :class:`JobCancelledError` — the job stays resumable.
+        Both parameters are optional, preserving the original signature.
+        """
         reference_video = str(Path(reference_video))
         job_id = (
             job_id
@@ -139,6 +149,8 @@ class ScientificMotionStudioV10:
             config=self.config,
             max_stage_attempts=int(limits.get("max_stage_attempts", 5)),
             debug_tracebacks=bool(self.config.get("debug_tracebacks", False)),
+            on_stage_event=progress_callback,
+            cancellation_token=cancellation_token,
         )
         try:
             return self._run_stages(

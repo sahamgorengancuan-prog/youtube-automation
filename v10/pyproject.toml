@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scientific-motion-studio-v10"
-version = "10.1.0"
+version = "10.2.0"
 description = "Agentic scientific editorial animation pipeline: OpenAI GPT reasoning, BFL FLUX Kontext art generation, resumable job runtime, hybrid Remotion rendering"
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -29,6 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 api = ["fastapi>=0.115", "uvicorn>=0.30"]
 webui = ["streamlit>=1.36"]
+notebook = ["ipywidgets>=8.0", "IPython>=8.0"]
 render = ["cairosvg>=2.7"]
 local-models = [
     "torch>=2.2",
