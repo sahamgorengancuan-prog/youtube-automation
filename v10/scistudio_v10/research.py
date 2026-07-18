@@ -124,9 +124,17 @@ class PublicResearchSearch:
             )
         return output
 
+    @staticmethod
+    def _search_safe(topic: str) -> str:
+        """Strip punctuation that some scholarly APIs reject with HTTP 400
+        (OpenAlex fails on '?' and similar); keep words and hyphens."""
+        cleaned = re.sub(r"[^\w\s-]", " ", topic)
+        return re.sub(r"\s+", " ", cleaned).strip() or topic
+
     def _openalex(self, topic: str) -> list[SourceDoc]:
         payload = self._get_json(
-            "https://api.openalex.org/works", {"search": topic, "per-page": 6, "mailto": "research@example.invalid"}
+            "https://api.openalex.org/works",
+            {"search": self._search_safe(topic), "per-page": 6, "mailto": "research@example.invalid"},
         )
         output = []
         for item in payload.get("results", []):

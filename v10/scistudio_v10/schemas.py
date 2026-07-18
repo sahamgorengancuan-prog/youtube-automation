@@ -8,7 +8,54 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class OpenModel(BaseModel):
+    """Base model for LLM-facing schemas.
+
+    LLM output is structurally free; this base applies a *systemic* coercion
+    before validation so shape drift never crashes a paid pipeline run:
+
+    - a field declared ``list[...]`` that receives a dict becomes the dict's
+      values (a dict of named notes is a list of notes); a scalar becomes a
+      one-element list;
+    - a field declared ``str`` (or ``str | None``) that receives a list is
+      joined; a dict is serialized to compact JSON;
+    - fields declared ``Any`` are never touched.
+    """
+
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, validate_assignment=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_open_types(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        import types
+        import typing
+
+        coerced = dict(data)
+        for name, field in cls.model_fields.items():
+            if name not in coerced:
+                continue
+            value = coerced[name]
+            annotation = field.annotation
+            if annotation is Any or value is None:
+                continue
+            origin = typing.get_origin(annotation)
+            wants_list = origin is list or annotation is list
+            wants_str = annotation is str
+            if not wants_str and origin in (typing.Union, types.UnionType):
+                args = set(typing.get_args(annotation))
+                wants_str = args == {str, type(None)}
+            if wants_list:
+                if isinstance(value, dict):
+                    coerced[name] = list(value.values())
+                elif isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                    coerced[name] = [value]
+            elif wants_str:
+                if isinstance(value, (list, tuple)):
+                    coerced[name] = "; ".join(str(item) for item in value)
+                elif isinstance(value, dict):
+                    coerced[name] = json.dumps(value, ensure_ascii=False)
+        return coerced
 
 
 class SourceDoc(OpenModel):
