@@ -166,7 +166,13 @@ class SecretsManager:
     global redaction. ``status()`` reports availability without exposure.
     """
 
-    SUPPORTED = ("OPENAI_API_KEY", "BFL_API_KEY", "UPLOAD_POST_TOKEN")
+    SUPPORTED = (
+        "OPENAI_API_KEY",
+        "BFL_API_KEY",
+        "OPENROUTER_API_KEY",
+        "GEMINI_API_KEY",
+        "UPLOAD_POST_TOKEN",
+    )
 
     def __init__(self) -> None:
         self._manual: dict[str, str] = {}
@@ -257,7 +263,10 @@ CONFIG_PRESETS: dict[str, dict[str, Any]] = {
         "research_search": {"enabled": True},
         "llm": {
             "provider_order": ["openai"],
-            "vision_provider_order": ["openai"],
+            # Two-tier vision: Qwen VL primary (~80%), Gemini escalation (~20%).
+            "vision_provider_order": ["openrouter", "gemini"],
+            "openrouter_vision_model": "qwen/qwen-2.5-vl-72b-instruct",
+            "gemini_vision_model": "gemini-2.5-flash",
             "image_provider": "bfl",
             "bfl_model": "flux-kontext-pro",
             "bfl_aspect_ratio": "9:16",
@@ -269,7 +278,10 @@ CONFIG_PRESETS: dict[str, dict[str, Any]] = {
         "research_search": {"enabled": True},
         "llm": {
             "provider_order": ["openai"],
-            "vision_provider_order": ["openai"],
+            # Two-tier vision: Qwen VL primary (~80%), Gemini escalation (~20%).
+            "vision_provider_order": ["openrouter", "gemini"],
+            "openrouter_vision_model": "qwen/qwen-2.5-vl-72b-instruct",
+            "gemini_vision_model": "gemini-2.5-flash",
             "image_provider": "bfl",
             "bfl_model": "flux-kontext-pro",
             "bfl_aspect_ratio": "9:16",

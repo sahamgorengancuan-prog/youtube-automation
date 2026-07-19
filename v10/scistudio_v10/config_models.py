@@ -13,10 +13,14 @@ Execution modes
 * ``test`` — like development, intended for injected fake providers and
   offline suites. Never performs paid live calls by itself.
 * ``production`` — the provider boundary is locked and validated:
-  OpenAI GPT is the exclusive reasoning/vision provider and BFL FLUX
-  Kontext is the exclusive image engine. Configurations that enable any
-  unauthorized fallback are rejected, and runtime failures raise
-  ``ProviderUnavailableError`` instead of degrading silently.
+  OpenAI GPT is the exclusive reasoning (text) provider and BFL FLUX Kontext
+  the exclusive image engine. Vision review runs a cost-efficient two-tier
+  policy: a primary vision model (Qwen VL via OpenRouter by default) handles
+  the bulk of critiques and difficult cases escalate to a stronger reviewer
+  (Gemini 2.5 Flash by default). Only OpenAI/OpenRouter/Gemini are authorized
+  vision providers. Configurations that enable any unauthorized fallback are
+  rejected, and runtime failures raise ``ProviderUnavailableError`` instead of
+  degrading silently.
 """
 
 from __future__ import annotations
@@ -28,6 +32,10 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .errors import ProviderLockViolationError
+
+# Vision review may use OpenAI, or the Qwen-VL(OpenRouter)+Gemini two-tier
+# policy, in production. Reasoning stays OpenAI-only; images stay BFL-only.
+PRODUCTION_VISION_PROVIDERS = frozenset({"openai", "openrouter", "gemini"})
 
 BFL_ALLOWED_MODELS = frozenset(
     {
@@ -70,6 +78,13 @@ class LLMConfig(BaseModel):
     openai_model: str = "gpt-5-mini"
     openai_vision_model: str = ""
     openai_reasoning_effort: str = "low"
+
+    # Two-tier vision review: cheap primary (Qwen VL via OpenRouter) for ~80%
+    # of critiques, escalate difficult/low-confidence cases to Gemini 2.5 Flash.
+    openrouter_vision_model: str = "qwen/qwen-2.5-vl-72b-instruct"
+    gemini_vision_model: str = "gemini-2.5-flash"
+    vision_escalation_enabled: bool = True
+    vision_escalation_confidence: float = Field(default=0.62, ge=0.0, le=1.0)
     openai_max_output_tokens: int = Field(default=8000, ge=256, le=200_000)
     openai_connect_timeout_s: float = Field(default=15.0, ge=1.0, le=120.0)
     openai_read_timeout_s: float = Field(default=180.0, ge=5.0, le=1200.0)
@@ -284,8 +299,15 @@ class StudioConfig(BaseModel):
                 "Gemini/OpenRouter/local fallbacks are not authorized"
             )
         vision = self.llm.ordered_vision_providers()
-        if vision != ["openai"]:
-            problems.append(f"llm.vision_provider_order must be ['openai'] in production (got {vision})")
+        bad_vision = [v for v in vision if v not in PRODUCTION_VISION_PROVIDERS]
+        if not vision:
+            problems.append("llm.vision_provider_order must name at least one vision provider in production")
+        if bad_vision:
+            problems.append(
+                f"llm.vision_provider_order may only use {sorted(PRODUCTION_VISION_PROVIDERS)} in production "
+                f"(got {vision}); local/procedural vision review is not authorized. Reasoning stays OpenAI-only "
+                "and images BFL-only"
+            )
         if self.llm.image_provider != "bfl":
             problems.append(
                 f"llm.image_provider must be 'bfl' in production (got {self.llm.image_provider!r}); "

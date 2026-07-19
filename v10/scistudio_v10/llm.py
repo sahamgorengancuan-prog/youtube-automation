@@ -3,11 +3,17 @@ Kontext), with execution-mode-aware provider locking.
 
 Production boundary
 -------------------
-* ``production`` mode: OpenAI GPT is the **only** text/vision provider and
-  BFL FLUX Kontext the **only** image provider. When they are unavailable or
-  exhausted, calls raise :class:`ProviderUnavailableError` — the pipeline
-  fails clearly instead of silently degrading to Gemini, OpenRouter, local
-  models, OpenAI Images or deterministic fallbacks.
+* ``production`` mode: OpenAI GPT is the **only** reasoning (text) provider and
+  BFL FLUX Kontext the **only** image provider. Vision review is served by a
+  cost-efficient two-tier policy — a primary vision model (Qwen VL via
+  OpenRouter by default) handles the bulk of critiques, and low-confidence or
+  ambiguous "difficult" cases escalate to a stronger reviewer (Gemini 2.5
+  Flash by default). Only OpenAI/OpenRouter/Gemini are authorized vision
+  providers in production; local/procedural vision fallbacks are not. When the
+  configured providers are unavailable or exhausted, calls raise
+  :class:`ProviderUnavailableError` — the pipeline fails clearly instead of
+  silently degrading to local models, OpenAI Images or deterministic
+  fallbacks.
 * ``development`` / ``test`` modes: alternative providers stay available for
   experimentation, and deterministic fallbacks are permitted — but fallback
   results are cached in a separate short-lived namespace and marked as
@@ -27,6 +33,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -41,8 +48,27 @@ FALLBACK_NAMESPACE = "_fallback"
 FALLBACK_MARKER = "__scistudio_fallback__"
 
 _PRODUCTION_TEXT_PROVIDERS = ("openai",)
+# Vision review is decoupled from reasoning: a cheap primary (Qwen VL via
+# OpenRouter) covers ~80% of critiques and difficult cases escalate to a
+# stronger reviewer (Gemini). Reasoning stays OpenAI-only and images BFL-only.
+_PRODUCTION_VISION_PROVIDERS = ("openai", "openrouter", "gemini")
 _KNOWN_TEXT_PROVIDERS = ("openai", "gemini", "openrouter", "local")
 _KNOWN_VISION_PROVIDERS = ("openai", "gemini", "openrouter")
+
+# Default two-tier vision models (overridable via config).
+_DEFAULT_QWEN_VISION_MODEL = "qwen/qwen-2.5-vl-72b-instruct"
+_DEFAULT_GEMINI_VISION_MODEL = "gemini-2.5-flash"
+
+# Appended to the primary reviewer's prompt so it self-reports confidence.
+# The extra ``_meta`` object is additive and stripped before the result is
+# returned to callers, so downstream schemas are never polluted.
+_VISION_CONFIDENCE_INSTRUCTION = (
+    'After the required JSON fields, also add a top-level "_meta" object with '
+    '"review_confidence" (a number from 0.0 to 1.0 describing how confident you are '
+    'in this visual judgement) and "needs_expert_review" (true only when the image is '
+    "ambiguous, borderline, or beyond your certainty and a second expert reviewer should "
+    "re-check it). Keep every other required field exactly as specified."
+)
 
 
 class LLMRouter:
@@ -102,7 +128,9 @@ class LLMRouter:
             order = [item.strip() for item in order.split(",") if item.strip()]
         order = [str(item).lower() for item in order]
         if self.is_production:
-            order = [item for item in order if item in _PRODUCTION_TEXT_PROVIDERS] or ["openai"]
+            # Vision is allowed a wider (still explicit) provider set than
+            # reasoning: Qwen-via-OpenRouter primary, Gemini escalation.
+            order = [item for item in order if item in _PRODUCTION_VISION_PROVIDERS] or ["openai"]
         return [item for item in order if item in _KNOWN_VISION_PROVIDERS]
 
     def _secret(self, *names: str) -> str:
@@ -112,9 +140,10 @@ class LLMRouter:
                 return value
         return ""
 
-    def available(self, provider: str) -> bool:
+    def available(self, provider: str, *, for_vision: bool = False) -> bool:
         provider = provider.lower()
-        if self.is_production and provider not in _PRODUCTION_TEXT_PROVIDERS:
+        allowed = _PRODUCTION_VISION_PROVIDERS if for_vision else _PRODUCTION_TEXT_PROVIDERS
+        if self.is_production and provider not in allowed:
             return False
         if provider == "gemini":
             return bool(self._secret("GEMINI_API_KEY"))
@@ -309,18 +338,32 @@ class LLMRouter:
         fallback: Any = None,
         force: bool = False,
     ) -> Any:
+        """Two-tier vision critique.
+
+        The primary reviewer (Qwen VL via OpenRouter by default) judges every
+        image; only *difficult* cases — where the primary self-reports low
+        confidence or flags the image as needing expert review — escalate to
+        the next reviewer in ``vision_provider_order`` (Gemini 2.5 Flash by
+        default). This keeps ~80% of critiques on the cheap primary while the
+        hard ~20% get the stronger reviewer. Escalation is skipped when only one
+        provider is configured or when ``vision_escalation_enabled`` is false.
+        """
         image_path = Path(image_path)
+        order = self.vision_provider_order
+        escalate_enabled = bool(self.config.get("vision_escalation_enabled", True)) and len(order) > 1
+        confidence_floor = float(self.config.get("vision_escalation_confidence", 0.62))
         # Cache key uses the image *content* hash — never filename + size.
         content_hash = sha256_file(image_path) if image_path.exists() else ""
         key = hash_value(
             {
                 "image_sha256": content_hash,
                 "prompt": prompt,
-                "order": self.vision_provider_order,
+                "order": order,
+                "escalation": [escalate_enabled, confidence_floor],
                 "models": {
                     "openai": self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini",
-                    "gemini": self.config.get("gemini_vision_model", ""),
-                    "openrouter": self.config.get("openrouter_vision_model", ""),
+                    "gemini": self.config.get("gemini_vision_model") or _DEFAULT_GEMINI_VISION_MODEL,
+                    "openrouter": self.config.get("openrouter_vision_model") or _DEFAULT_QWEN_VISION_MODEL,
                 },
                 "cache_schema": CACHE_SCHEMA_VERSION,
             },
@@ -334,33 +377,101 @@ class LLMRouter:
 
         errors: list[str] = []
         retry_kwargs = self._retry_kwargs()
-        for provider in self.vision_provider_order:
-            if not self.available(provider):
-                continue
+        available_order = [p for p in order if self.available(p, for_vision=True)]
+        best: tuple[Any, str] | None = None
+        for index, provider in enumerate(available_order):
+            is_last = index == len(available_order) - 1
+            # Ask non-final reviewers to self-report confidence so we can decide
+            # whether the case is difficult enough to escalate.
+            use_prompt = (
+                prompt if (is_last or not escalate_enabled) else f"{prompt}\n\n{_VISION_CONFIDENCE_INSTRUCTION}"
+            )
             try:
                 if provider == "gemini":
-                    output = call_with_retries(lambda: self._gemini_vision(image_path, prompt), **retry_kwargs)
+                    output = call_with_retries(lambda p=use_prompt: self._gemini_vision(image_path, p), **retry_kwargs)
                 elif provider == "openrouter":
-                    output = call_with_retries(lambda: self._openrouter_vision(image_path, prompt), **retry_kwargs)
+                    output = call_with_retries(
+                        lambda p=use_prompt: self._openrouter_vision(image_path, p), **retry_kwargs
+                    )
                 else:
-                    output = call_with_retries(lambda: self._openai_vision(image_path, prompt), **retry_kwargs)
+                    output = call_with_retries(lambda p=use_prompt: self._openai_vision(image_path, p), **retry_kwargs)
                 parsed = extract_json(output, fallback=None)
-                if parsed is not None:
-                    save_json(cache_path, parsed)
-                    return parsed
-                errors.append(f"{provider}: non-JSON vision response")
+                if parsed is None:
+                    errors.append(f"{provider}: non-JSON vision response")
+                    continue
+                best = (parsed, provider)
+                if is_last or not escalate_enabled:
+                    break
+                if not self._vision_needs_escalation(parsed, confidence_floor):
+                    break
+                self._emit("llm.vision_escalation", namespace=namespace, from_provider=provider)
             except Exception as exc:
                 errors.append(f"{provider}: {redacted_exception_text(exc, 400)}")
 
+        if best is not None:
+            parsed, provider = best
+            parsed = self._strip_vision_meta(parsed)
+            save_json(cache_path, parsed)
+            self._emit("llm.vision_completed", provider=provider, namespace=namespace)
+            return parsed
+
         if self.is_production:
             raise ProviderUnavailableError(
-                "Production vision provider (OpenAI) unavailable or exhausted; "
+                "Production vision providers unavailable or exhausted; "
                 "refusing unreviewed approval. Errors: " + (" | ".join(errors) or "no provider configured"),
-                provider="openai",
+                provider=(available_order[0] if available_order else (order[0] if order else "openai")),
             )
         if errors:
             self._emit("llm.vision_fallback", namespace=namespace, reasons=errors[-2:])
         return fallback() if callable(fallback) else fallback
+
+    @staticmethod
+    def _coerce_confidence(value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            number = float(value)
+        elif isinstance(value, str):
+            match = re.search(r"-?\d+(?:\.\d+)?", value)
+            if not match:
+                return None
+            number = float(match.group())
+        else:
+            return None
+        if number > 1.0:  # tolerate 0..100 percentage scale
+            number /= 100.0
+        return number
+
+    def _vision_needs_escalation(self, parsed: Any, confidence_floor: float) -> bool:
+        """Decide whether a primary critique is 'difficult' enough to escalate.
+
+        Escalate when the reviewer explicitly flags uncertainty or reports a
+        confidence below ``confidence_floor``. When no confidence signal is
+        present we keep the primary's verdict (the efficient common path).
+        """
+        if not isinstance(parsed, dict):
+            return True
+        meta = parsed.get("_meta") if isinstance(parsed.get("_meta"), dict) else {}
+        for flag_key in ("needs_expert_review", "escalate", "low_confidence", "uncertain"):
+            for src in (meta, parsed):
+                flag = src.get(flag_key)
+                if isinstance(flag, bool) and flag:
+                    return True
+                if isinstance(flag, str) and flag.strip().lower() in {"true", "yes", "1"}:
+                    return True
+        for conf_key in ("review_confidence", "self_confidence", "confidence", "certainty"):
+            for src in (meta, parsed):
+                if conf_key in src:
+                    number = self._coerce_confidence(src[conf_key])
+                    if number is not None:
+                        return number < confidence_floor
+        return False
+
+    @staticmethod
+    def _strip_vision_meta(parsed: Any) -> Any:
+        if isinstance(parsed, dict) and "_meta" in parsed:
+            return {key: value for key, value in parsed.items() if key != "_meta"}
+        return parsed
 
     # -- image generation -------------------------------------------------------
     def generate_reference_image(
@@ -706,7 +817,7 @@ class LLMRouter:
         return response.choices[0].message.content
 
     def _openrouter_vision(self, image_path: Path, prompt: str):
-        model = self.config.get("openrouter_vision_model") or "meta-llama/llama-3.2-11b-vision-instruct:free"
+        model = self.config.get("openrouter_vision_model") or _DEFAULT_QWEN_VISION_MODEL
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         data_url = f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
         response = self._openrouter().chat.completions.create(

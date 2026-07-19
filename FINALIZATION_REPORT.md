@@ -239,3 +239,29 @@ re-executed twice after the fix.
   * Job manifests upgrade in place to schema 10.1; stages left `running`
     are re-run once.
 * Version: package `scientific-motion-studio-v10` 10.0.0 → **10.1.0**.
+
+## 11. Addendum — two-tier vision review (Qwen VL + Gemini escalation)
+
+Vision review is decoupled from reasoning for cost efficiency. Reasoning
+stays **OpenAI-only** and image generation stays **BFL FLUX Kontext-only** in
+production, but the aesthetic vision critic now runs a two-tier policy:
+
+* **Primary (~80% of cases):** Qwen VL via OpenRouter
+  (`qwen/qwen-2.5-vl-72b-instruct`), a strong-yet-cheap vision reviewer.
+* **Escalation (~20% difficult cases):** Gemini 2.5 Flash. The primary is
+  asked to self-report `_meta.review_confidence` (0..1) and
+  `_meta.needs_expert_review`; a critique below
+  `llm.vision_escalation_confidence` (default 0.62) — or explicitly flagged —
+  escalates to the next reviewer, whose verdict is preferred. Confident
+  critiques never make the second call. The additive `_meta` is stripped
+  before results reach downstream schemas.
+
+Configuration (`llm.*`): `vision_provider_order` (e.g.
+`["openrouter", "gemini"]`), `openrouter_vision_model`, `gemini_vision_model`,
+`vision_escalation_enabled`, `vision_escalation_confidence`. Production now
+authorizes `openai`/`openrouter`/`gemini` for **vision only**; local/procedural
+vision review is still rejected. New optional secrets: `OPENROUTER_API_KEY`
+(Qwen) and `GEMINI_API_KEY` (Gemini); when both are absent, vision review
+falls back to OpenAI. Covered by `_test_vision_two_tier_escalation` and the
+updated provider-lock tests; full offline suite **288** checks, both notebooks
+execute cleanly twice (fresh + resume).

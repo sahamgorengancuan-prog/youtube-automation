@@ -531,6 +531,15 @@ class ControlCenter:
                     argv = [str(x) for x in parsed]
             except json.JSONDecodeError:
                 argv = [self.f_temporal_argv.value]
+        # Two-tier vision: Qwen VL (OpenRouter) primary + Gemini escalation when
+        # their keys exist; otherwise fall back to OpenAI vision.
+        vision_order = []
+        if self.controller.secrets.available("OPENROUTER_API_KEY"):
+            vision_order.append("openrouter")
+        if self.controller.secrets.available("GEMINI_API_KEY"):
+            vision_order.append("gemini")
+        if not vision_order:
+            vision_order = ["openai"]
         config: dict[str, Any] = {
             "workspace": str(self.controller.paths["base"]),
             "execution_mode": self.mode.value,
@@ -539,9 +548,9 @@ class ControlCenter:
                 "provider_order": ["openai"]
                 if self.mode.value == "production"
                 else (["openai"] if self.controller.secrets.available("OPENAI_API_KEY") else []),
-                "vision_provider_order": ["openai"]
-                if self.mode.value == "production"
-                else (["openai"] if self.controller.secrets.available("OPENAI_API_KEY") else []),
+                "vision_provider_order": vision_order,
+                "openrouter_vision_model": "qwen/qwen-2.5-vl-72b-instruct",
+                "gemini_vision_model": "gemini-2.5-flash",
                 "openai_model": self.f_openai_model.value,
                 "openai_vision_model": self.f_openai_vision.value,
                 "openai_reasoning_effort": self.f_effort.value,

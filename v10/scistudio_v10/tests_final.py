@@ -102,8 +102,14 @@ def _test_config_validation(c: Collector, base: Path) -> None:
         {"execution_mode": "production", "llm": {"provider_order": ["openai", "gemini"]}},
         {"execution_mode": "production", "llm": {"provider_order": ["openrouter"]}},
         {
+            # Vision may use openai/openrouter/gemini, but NOT local/procedural.
             "execution_mode": "production",
-            "llm": {"provider_order": ["openai"], "vision_provider_order": ["openai", "gemini"]},
+            "llm": {"provider_order": ["openai"], "vision_provider_order": ["openrouter", "local"]},
+        },
+        {
+            # Reasoning stays OpenAI-only even though these are valid vision providers.
+            "execution_mode": "production",
+            "llm": {"provider_order": ["openai", "openrouter"], "vision_provider_order": ["openrouter"]},
         },
         {"execution_mode": "production", "llm": {"provider_order": ["openai"], "enable_local_fallback": True}},
         {"execution_mode": "production", "llm": {"provider_order": ["openai"], "image_provider": "openai"}},
@@ -124,6 +130,24 @@ def _test_config_validation(c: Collector, base: Path) -> None:
     )
     c.check("valid production config accepted", good.execution_mode == ExecutionMode.production)
     c.check("mode propagates into llm config", good.as_runtime_dict()["llm"]["execution_mode"] == "production")
+
+    # Two-tier vision (Qwen VL via OpenRouter + Gemini escalation) is a valid
+    # production config while reasoning stays OpenAI-only and images BFL-only.
+    two_tier = StudioConfig.from_dict(
+        {
+            "execution_mode": "production",
+            "llm": {
+                "provider_order": ["openai"],
+                "vision_provider_order": ["openrouter", "gemini"],
+                "openrouter_vision_model": "qwen/qwen-2.5-vl-72b-instruct",
+                "gemini_vision_model": "gemini-2.5-flash",
+            },
+        }
+    )
+    c.check(
+        "two-tier vision (qwen+gemini) accepted in production",
+        two_tier.as_runtime_dict()["llm"]["vision_provider_order"] == ["openrouter", "gemini"],
+    )
 
     dev = StudioConfig.from_dict({})
     c.check("development is the default mode", dev.execution_mode == ExecutionMode.development)
@@ -1000,6 +1024,91 @@ def _test_model_fallback(c: Collector, base: Path) -> None:
     c.check("empty openai_model falls back to default", captured.get("model") == "gpt-5-mini", str(captured))
 
 
+def _test_vision_two_tier_escalation(c: Collector, base: Path) -> None:
+    """Qwen VL primary handles confident cases; low-confidence/flagged cases
+    escalate to Gemini. Production allows the openrouter+gemini vision pair."""
+
+    class TwoTierRouter(LLMRouter):
+        def __init__(self, *args, primary_payload="", **kwargs):
+            super().__init__(*args, **kwargs)
+            self.primary_payload = primary_payload
+            self.calls = {"openrouter": 0, "gemini": 0}
+            self.primary_prompt = ""
+
+        def _openrouter_vision(self, image_path, prompt):
+            self.calls["openrouter"] += 1
+            self.primary_prompt = prompt
+            return self.primary_payload
+
+        def _gemini_vision(self, image_path, prompt):
+            self.calls["gemini"] += 1
+            return '{"status": "revise", "reviewer": "gemini"}'
+
+    secrets = {"OPENROUTER_API_KEY": "sk-or-testkey12345678", "GEMINI_API_KEY": "gm-testkey12345678"}
+    image = _image_file(base / "frame.png")
+
+    def make(primary_payload, ns):
+        return TwoTierRouter(
+            {
+                "execution_mode": "production",
+                "provider_order": ["openai"],
+                "vision_provider_order": ["openrouter", "gemini"],
+                "vision_escalation_confidence": 0.62,
+                "retry": {"max_attempts": 1},
+            },
+            secrets,
+            base / ns,
+            primary_payload=primary_payload,
+        )
+
+    # Confident primary (0.9 >= 0.62): keep Qwen, never touch Gemini (~80% path).
+    confident = make('{"status": "approve", "_meta": {"review_confidence": 0.9}}', "c1")
+    out = confident.critique_image(image_path=image, prompt="review", fallback=None, force=True)
+    c.check(
+        "confident primary is not escalated", confident.calls == {"openrouter": 1, "gemini": 0}, str(confident.calls)
+    )
+    c.check("primary verdict returned on confident case", out.get("status") == "approve")
+    c.check("_meta stripped from returned critique", "_meta" not in out)
+    c.check("primary reviewer asked to self-report confidence", "review_confidence" in confident.primary_prompt)
+
+    # Low-confidence primary (0.3 < 0.62): escalate to Gemini (~20% path).
+    lowconf = make('{"status": "approve", "_meta": {"review_confidence": 0.3}}', "c2")
+    out = lowconf.critique_image(image_path=image, prompt="review", fallback=None, force=True)
+    c.check(
+        "low-confidence primary escalates to gemini",
+        lowconf.calls == {"openrouter": 1, "gemini": 1},
+        str(lowconf.calls),
+    )
+    c.check("escalated verdict comes from gemini", out.get("reviewer") == "gemini")
+
+    # Explicit needs_expert_review flag also escalates even if confidence absent.
+    flagged = make('{"status": "approve", "_meta": {"needs_expert_review": true}}', "c3")
+    out = flagged.critique_image(image_path=image, prompt="review", fallback=None, force=True)
+    c.check("flagged primary escalates to gemini", flagged.calls["gemini"] == 1, str(flagged.calls))
+
+    # Disabling escalation keeps everything on the primary regardless of confidence.
+    disabled = TwoTierRouter(
+        {
+            "execution_mode": "production",
+            "provider_order": ["openai"],
+            "vision_provider_order": ["openrouter", "gemini"],
+            "vision_escalation_enabled": False,
+            "retry": {"max_attempts": 1},
+        },
+        secrets,
+        base / "c4",
+        primary_payload='{"status": "approve"}',
+    )
+    # With escalation off, the primary prompt has no confidence instruction, so
+    # override the assertion path by calling directly through critique_image.
+    disabled.critique_image(image_path=image, prompt="review", fallback=None, force=True)
+    c.check(
+        "escalation disabled keeps single primary call",
+        disabled.calls == {"openrouter": 1, "gemini": 0},
+        str(disabled.calls),
+    )
+
+
 # ---------------------------------------------------------------------------
 # FLUX prompt budget (bloated initial prompt must fit, not crash)
 # ---------------------------------------------------------------------------
@@ -1396,6 +1505,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_bfl_mocked_integration(c, base / "bfl")
     _test_llm_shape_coercion(c, base / "coercion")
     _test_model_fallback(c, base / "model_fallback")
+    _test_vision_two_tier_escalation(c, base / "vision_two_tier")
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")
