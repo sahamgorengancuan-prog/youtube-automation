@@ -1,8 +1,8 @@
 {
   "passed": true,
-  "count": 276,
+  "count": 278,
   "regression_count": 92,
-  "final_count": 132,
+  "final_count": 134,
   "notebook_count": 52,
   "tests": [
     {
@@ -1026,6 +1026,16 @@
       "detail": ""
     },
     {
+      "name": "empty vision model falls back to openai_model",
+      "passed": true,
+      "detail": "{'model': 'gpt-5-mini'}"
+    },
+    {
+      "name": "empty openai_model falls back to default",
+      "passed": true,
+      "detail": "{'model': 'gpt-5-mini'}"
+    },
+    {
       "name": "bloated initial prompt fits budget instead of crashing",
       "passed": true,
       "detail": "valid=True words=380 errors=[]"
@@ -1258,7 +1268,7 @@
     {
       "name": "quick smoke passes without API keys",
       "passed": true,
-      "detail": "{\"passed\": true, \"manifest_status\": \"completed\", \"artifacts_ok\": true, \"resume_used_cache\": true, \"redaction_ok\": true, \"stage_events\": 30, \"run_dir\": \"v10_final_validation/notebook/workspace/smoke_tests/20260719T071221/studio/jobs/quick-smoke\"}"
+      "detail": "{\"passed\": true, \"manifest_status\": \"completed\", \"artifacts_ok\": true, \"resume_used_cache\": true, \"redaction_ok\": true, \"stage_events\": 30, \"run_dir\": \"v10_final_validation/notebook/workspace/smoke_tests/20260719T164052/studio/jobs/quick-smoke\"}"
     },
     {
       "name": "quick smoke resume used cache",
@@ -1283,7 +1293,7 @@
     {
       "name": "resume reuses manifest and cache",
       "passed": true,
-      "detail": "{\"elapsed_s\": 0.9, \"current_stage\": \"\", \"progress\": 0.0, \"completed\": [], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\", \"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"failed\": [], \"retries\": 0, \"event_count\": 15}"
+      "detail": "{\"elapsed_s\": 0.8, \"current_stage\": \"\", \"progress\": 0.0, \"completed\": [], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\", \"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"failed\": [], \"retries\": 0, \"event_count\": 15}"
     },
     {
       "name": "cancellation stops before next safe stage",

@@ -318,7 +318,7 @@ class LLMRouter:
                 "prompt": prompt,
                 "order": self.vision_provider_order,
                 "models": {
-                    "openai": self.config.get("openai_vision_model", self.config.get("openai_model", "gpt-5-mini")),
+                    "openai": self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini",
                     "gemini": self.config.get("gemini_vision_model", ""),
                     "openrouter": self.config.get("openrouter_vision_model", ""),
                 },
@@ -571,7 +571,7 @@ class LLMRouter:
     def _gemini_vision(self, image_path: Path, prompt: str):
         from google.genai import types
 
-        model = self.config.get("gemini_vision_model", self.config.get("gemini_model", "gemini-2.5-flash"))
+        model = self.config.get("gemini_vision_model") or self.config.get("gemini_model") or "gemini-2.5-flash"
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         response = self._gemini().models.generate_content(
             model=model,
@@ -629,7 +629,7 @@ class LLMRouter:
         return "".join(parts)
 
     def _openai_json(self, system: str, prompt: str, temperature: float | None):
-        model = self.config.get("openai_model", "gpt-5-mini")
+        model = self.config.get("openai_model") or "gpt-5-mini"
         response = self._openai().responses.create(
             model=model,
             input=[
@@ -655,7 +655,7 @@ class LLMRouter:
         return text
 
     def _openai_vision(self, image_path: Path, prompt: str):
-        model = self.config.get("openai_vision_model", self.config.get("openai_model", "gpt-5-mini"))
+        model = self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini"
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         data_url = f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
         response = self._openai().responses.create(
@@ -706,7 +706,7 @@ class LLMRouter:
         return response.choices[0].message.content
 
     def _openrouter_vision(self, image_path: Path, prompt: str):
-        model = self.config.get("openrouter_vision_model", "meta-llama/llama-3.2-11b-vision-instruct:free")
+        model = self.config.get("openrouter_vision_model") or "meta-llama/llama-3.2-11b-vision-instruct:free"
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         data_url = f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
         response = self._openrouter().chat.completions.create(

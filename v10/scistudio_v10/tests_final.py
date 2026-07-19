@@ -945,6 +945,62 @@ def _test_llm_shape_coercion(c: Collector, base: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Empty model strings must fall back to a real model
+# ---------------------------------------------------------------------------
+
+
+def _test_model_fallback(c: Collector, base: Path) -> None:
+    captured: dict[str, str] = {}
+
+    class FakeResponse:
+        output_text = '{"status": "approve"}'
+        id = "resp_x"
+        usage = None
+        output: list = []
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            captured["model"] = kwargs["model"]
+            return FakeResponse()
+
+    class FakeOpenAIClient:
+        responses = FakeResponses()
+
+    # The live failure: production config with an empty vision model string.
+    router = LLMRouter(
+        {
+            "execution_mode": "production",
+            "provider_order": ["openai"],
+            "vision_provider_order": ["openai"],
+            "openai_model": "gpt-5-mini",
+            "openai_vision_model": "",
+            "retry": {"max_attempts": 1},
+        },
+        {"OPENAI_API_KEY": "sk-test-abcdefghijklmnop"},
+        base / "cache",
+    )
+    router._openai_client = FakeOpenAIClient()
+    image = _image_file(base / "frame.png")
+    router.critique_image(image_path=image, prompt="review", fallback=None, force=True)
+    c.check("empty vision model falls back to openai_model", captured.get("model") == "gpt-5-mini", str(captured))
+
+    captured.clear()
+    router2 = LLMRouter(
+        {
+            "execution_mode": "production",
+            "provider_order": ["openai"],
+            "openai_model": "",
+            "retry": {"max_attempts": 1},
+        },
+        {"OPENAI_API_KEY": "sk-test-abcdefghijklmnop"},
+        base / "cache2",
+    )
+    router2._openai_client = FakeOpenAIClient()
+    router2.generate_json(system="s", prompt="p", namespace="ns", fallback=None, force=True)
+    c.check("empty openai_model falls back to default", captured.get("model") == "gpt-5-mini", str(captured))
+
+
+# ---------------------------------------------------------------------------
 # FLUX prompt budget (bloated initial prompt must fit, not crash)
 # ---------------------------------------------------------------------------
 
@@ -1339,6 +1395,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_openai_mocked_integration(c, base / "openai")
     _test_bfl_mocked_integration(c, base / "bfl")
     _test_llm_shape_coercion(c, base / "coercion")
+    _test_model_fallback(c, base / "model_fallback")
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")
