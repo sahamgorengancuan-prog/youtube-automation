@@ -1,8 +1,8 @@
 {
   "passed": true,
-  "count": 263,
+  "count": 273,
   "regression_count": 92,
-  "final_count": 119,
+  "final_count": 129,
   "notebook_count": 52,
   "tests": [
     {
@@ -976,6 +976,56 @@
       "detail": ""
     },
     {
+      "name": "dict limitations coerced to list",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "scalar hook coerced to list",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "list summary joined to str",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dict confidence extracts score",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "string confidence parses number",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "list confidence extracts number",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "non-numeric confidence falls back to default",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dict int field extracts number",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "dict-of-beats coerced to list",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Any field untouched by coercion",
+      "passed": true,
+      "detail": ""
+    },
+    {
       "name": "e2e offline run renders",
       "passed": true,
       "detail": ""
@@ -1193,7 +1243,7 @@
     {
       "name": "quick smoke passes without API keys",
       "passed": true,
-      "detail": "{\"passed\": true, \"manifest_status\": \"completed\", \"artifacts_ok\": true, \"resume_used_cache\": true, \"redaction_ok\": true, \"stage_events\": 30, \"run_dir\": \"v10_final_validation/notebook/workspace/smoke_tests/20260718T114446/studio/jobs/quick-smoke\"}"
+      "detail": "{\"passed\": true, \"manifest_status\": \"completed\", \"artifacts_ok\": true, \"resume_used_cache\": true, \"redaction_ok\": true, \"stage_events\": 30, \"run_dir\": \"v10_final_validation/notebook/workspace/smoke_tests/20260719T062255/studio/jobs/quick-smoke\"}"
     },
     {
       "name": "quick smoke resume used cache",
@@ -1218,7 +1268,7 @@
     {
       "name": "resume reuses manifest and cache",
       "passed": true,
-      "detail": "{\"elapsed_s\": 1.0, \"current_stage\": \"\", \"progress\": 0.0, \"completed\": [], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\", \"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"failed\": [], \"retries\": 0, \"event_count\": 15}"
+      "detail": "{\"elapsed_s\": 0.6, \"current_stage\": \"\", \"progress\": 0.0, \"completed\": [], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\", \"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"failed\": [], \"retries\": 0, \"event_count\": 15}"
     },
     {
       "name": "cancellation stops before next safe stage",
@@ -1233,7 +1283,7 @@
     {
       "name": "scoped force rerun re-executes selected stage",
       "passed": true,
-      "detail": "{\"elapsed_s\": 1.0, \"current_stage\": \"09_shot_state_SC08\", \"progress\": 0.42857142857142855, \"completed\": [\"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\"], \"failed\": [], \"retries\": 12, \"event_count\": 27}"
+      "detail": "{\"elapsed_s\": 0.8, \"current_stage\": \"09_shot_state_SC08\", \"progress\": 0.42857142857142855, \"completed\": [\"04_storyboard\", \"06_art_bible\", \"07_continuity_canon\", \"08_scene_architectures\", \"09_shot_state_SC01\", \"09_shot_state_SC02\", \"09_shot_state_SC03\", \"09_shot_state_SC04\", \"09_shot_state_SC05\", \"09_shot_state_SC06\", \"09_shot_state_SC07\", \"09_shot_state_SC08\"], \"cached\": [\"01_style_reference\", \"02_research\", \"03_script\"], \"failed\": [], \"retries\": 12, \"event_count\": 27}"
     },
     {
       "name": "scoped force rerun keeps earlier stages cached",

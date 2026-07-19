@@ -23,9 +23,56 @@ class OpenModel(BaseModel):
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, validate_assignment=False)
 
+    @staticmethod
+    def _extract_number(value: Any) -> float | None:
+        """Best-effort numeric value from a drifted LLM payload.
+
+        A dict like ``{"label": "high", "score": 0.8}`` yields ``0.8``; a
+        string like ``"about 0.6 (medium)"`` yields ``0.6``. ``bool`` is never
+        treated as a number. Returns ``None`` when nothing numeric is found.
+        """
+        import re
+
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            match = re.search(r"-?\d+(?:\.\d+)?", value)
+            return float(match.group()) if match else None
+        if isinstance(value, dict):
+            for key in (
+                "score",
+                "value",
+                "amount",
+                "seconds",
+                "count",
+                "number",
+                "confidence",
+                "probability",
+                "weight",
+            ):
+                if key in value:
+                    inner = OpenModel._extract_number(value[key])
+                    if inner is not None:
+                        return inner
+            for item in value.values():
+                inner = OpenModel._extract_number(item)
+                if inner is not None:
+                    return inner
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                inner = OpenModel._extract_number(item)
+                if inner is not None:
+                    return inner
+        return None
+
     @model_validator(mode="before")
     @classmethod
     def _coerce_open_types(cls, data: Any) -> Any:
+        """Systemically reconcile LLM shape drift with declared field types
+        before validation, so a paid pipeline run never crashes on a dict/str
+        where a list/str/number was declared. ``Any`` fields are untouched."""
         if not isinstance(data, dict):
             return data
         import types
@@ -40,11 +87,11 @@ class OpenModel(BaseModel):
             if annotation is Any or value is None:
                 continue
             origin = typing.get_origin(annotation)
+            args = set(typing.get_args(annotation)) if origin in (typing.Union, types.UnionType) else set()
             wants_list = origin is list or annotation is list
-            wants_str = annotation is str
-            if not wants_str and origin in (typing.Union, types.UnionType):
-                args = set(typing.get_args(annotation))
-                wants_str = args == {str, type(None)}
+            wants_str = annotation is str or args == {str, type(None)}
+            wants_float = annotation is float or args == {float, type(None)}
+            wants_int = annotation is int or args == {int, type(None)}
             if wants_list:
                 if isinstance(value, dict):
                     coerced[name] = list(value.values())
@@ -55,6 +102,12 @@ class OpenModel(BaseModel):
                     coerced[name] = "; ".join(str(item) for item in value)
                 elif isinstance(value, dict):
                     coerced[name] = json.dumps(value, ensure_ascii=False)
+            elif (wants_float or wants_int) and isinstance(value, (dict, list, tuple, str)):
+                number = OpenModel._extract_number(value)
+                if number is not None:
+                    coerced[name] = int(round(number)) if wants_int else number
+                elif not field.is_required():
+                    coerced[name] = field.get_default(call_default_factory=True)
         return coerced
 
 

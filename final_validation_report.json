@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-07-18T11:44:57.053807+00:00",
+  "generated_at": "2026-07-19T06:23:02.172580+00:00",
   "package_version": "10.2.0",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 263,
+  "total_checks": 273,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (119)",
+    "finalization_tests": "PASS (129)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",

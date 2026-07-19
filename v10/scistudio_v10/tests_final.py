@@ -904,6 +904,47 @@ def _test_bfl_mocked_integration(c: Collector, base: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# LLM shape-drift coercion (systemic OpenModel)
+# ---------------------------------------------------------------------------
+
+
+def _test_llm_shape_coercion(c: Collector, base: Path) -> None:
+    from .schemas import Beat, ResearchPack, ScriptPackage
+
+    # dict-of-notes where a list is declared (first live production failure).
+    pack = ResearchPack(topic="t", limitations={"coverage": "sources cited", "uncertainty": "varies"})
+    c.check("dict limitations coerced to list", pack.limitations == ["sources cited", "varies"])
+    c.check("scalar hook coerced to list", ResearchPack(topic="t", hooks="one").hooks == ["one"])
+    c.check("list summary joined to str", ResearchPack(topic="t", summary=["a", "b"]).summary == "a; b")
+
+    # dict/str where a float is declared (second live production failure).
+    raw = {
+        "topic": "t",
+        "facts": [
+            {"claim": "a", "confidence": {"label": "high", "score": 0.8}},
+            {"claim": "b", "confidence": "about 0.55 (moderate)"},
+            {"claim": "c", "confidence": [0.42]},
+            {"claim": "d", "confidence": {"label": "unknown"}},
+        ],
+    }
+    facts = ResearchPack.model_validate(raw).facts
+    c.check("dict confidence extracts score", facts[0].confidence == 0.8)
+    c.check("string confidence parses number", round(facts[1].confidence, 2) == 0.55)
+    c.check("list confidence extracts number", facts[2].confidence == 0.42)
+    c.check("non-numeric confidence falls back to default", facts[3].confidence == 0.6)
+
+    # int field + dict-of-beats + Any preserved.
+    beat = Beat.model_validate({"spoken_line": "x", "pause_after_ms": {"ms": 120}})
+    c.check("dict int field extracts number", beat.pause_after_ms == 120)
+    script = ScriptPackage.model_validate({"topic": "t", "beats": {"b1": {"spoken_line": "hi"}}})
+    c.check("dict-of-beats coerced to list", len(script.beats) == 1 and script.beats[0].spoken_line == "hi")
+    c.check(
+        "Any field untouched by coercion",
+        ResearchPack(topic="t", raw_llm_output={"keep": "dict"}).raw_llm_output == {"keep": "dict"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Offline end-to-end
 # ---------------------------------------------------------------------------
 
@@ -1206,6 +1247,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_vision_cache_content_hash(c, base / "vision")
     _test_openai_mocked_integration(c, base / "openai")
     _test_bfl_mocked_integration(c, base / "bfl")
+    _test_llm_shape_coercion(c, base / "coercion")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")
     _test_service_api(c, base / "api")
