@@ -373,6 +373,43 @@ class FluxPromptSystem:
         )
         return diagnostics
 
+    def _fit_initial_budget(self, blocks: list[FluxPromptBlock], max_words: int) -> list[FluxPromptBlock]:
+        """Trim descriptive blocks so the assembled initial prompt fits the
+        word budget. Immutable blocks (style/image type, continuity) and the
+        negative-constraints block are preserved in full; the remaining
+        LLM-authored blocks are shortened proportionally to their length, each
+        keeping at least a short head so no scene element is dropped entirely.
+        Deterministic, so a resumed job reproduces the same prompt.
+        """
+        protected_roles = {"negative_constraints"}
+
+        def word_count(text: str) -> int:
+            return len(text.split())
+
+        def is_fixed(block: FluxPromptBlock) -> bool:
+            return block.immutable or block.role in protected_roles
+
+        fixed_words = sum(word_count(b.text) for b in blocks if is_fixed(b))
+        trimmable = [b for b in blocks if not is_fixed(b)]
+        trimmable_total = sum(word_count(b.text) for b in trimmable) or 1
+        budget = max(0, max_words - fixed_words)
+
+        result: list[FluxPromptBlock] = []
+        for block in blocks:
+            if is_fixed(block):
+                result.append(block)
+                continue
+            share = max(8, int(budget * word_count(block.text) / trimmable_total))
+            words = block.text.split()
+            if len(words) > share:
+                trimmed = " ".join(words[:share]).rstrip(",;: ") + "."
+                result.append(
+                    self._block(block.block_id, block.role, trimmed, immutable=block.immutable, priority=block.priority)
+                )
+            else:
+                result.append(block)
+        return result
+
     def _brief(
         self,
         *,
@@ -392,6 +429,13 @@ class FluxPromptSystem:
         motion_requirements: list[str] | None = None,
         anchor_board_path: str = "",
     ) -> DrawingBrief:
+        # Fit an over-long INITIAL prompt to the word budget by trimming the
+        # descriptive LLM-authored blocks — never the immutable style/continuity
+        # blocks or the negative constraints — instead of aborting an expensive
+        # production run. Edit prompts keep their own (stricter) length gate.
+        edit = purpose in {"revision", "pose_variant", "layer_isolation"}
+        if not edit and self._word_count(self._compile(blocks)) > self.policy.max_initial_prompt_words:
+            blocks = self._fit_initial_budget(blocks, self.policy.max_initial_prompt_words)
         compiled = self._compile(blocks)
         style_hash = fingerprint.fingerprint_hash if fingerprint else fingerprint_hash
         stack = FluxPromptStack(

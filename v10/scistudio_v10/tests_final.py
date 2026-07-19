@@ -945,6 +945,97 @@ def _test_llm_shape_coercion(c: Collector, base: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# FLUX prompt budget (bloated initial prompt must fit, not crash)
+# ---------------------------------------------------------------------------
+
+
+def _test_flux_prompt_budget(c: Collector, base: Path) -> None:
+    from .flux_prompt_system import FluxPromptSystem
+    from .schemas import (
+        ContinuityCanon,
+        DepthPlane,
+        MotionSeam,
+        ReferencePack,
+        SceneIllustrationArchitecture,
+    )
+    from .style_canon import base_bible
+
+    root = base / "flux_prompt"
+    system = FluxPromptSystem(
+        {"seed_base": 100, "aspect_ratio": "9:16", "min_initial_prompt_words": 80, "max_initial_prompt_words": 380},
+        root,
+    )
+    bible = base_bible("Rain for a year", "ref.png")
+    pack = ReferencePack(scene_id="scene_1", board_path=str(root / "board.png"))
+    Image.new("RGB", (180, 320), "#FAFAF7").save(pack.board_path)
+    long_text = (
+        "a sprawling metropolis under relentless torrential rainfall where every street canal and "
+        "rooftop overflows with churning grey water while exhausted residents wade through waist "
+        "deep floods past submerged vehicles collapsing infrastructure and improvised barricades " * 6
+    )
+    architecture = SceneIllustrationArchitecture(
+        scene_id="scene_1",
+        beat_id="B01",
+        visual_thesis=long_text,
+        focal_subject=long_text,
+        narrative_claim=long_text,
+        secondary_subjects=[long_text, long_text],
+        depth_planes=[DepthPlane(plane_id="city", depth="midground", contents=long_text)],
+        motion_seams=[
+            MotionSeam(
+                seam_id="rain",
+                subject="rain",
+                method="texture_loop",
+                region="rain field",
+                resting_overlap_rule="masked",
+                required_variants=["initial", "changed"],
+            )
+        ],
+        animation_representation=["texture_loop"],
+    )
+    brief = system.beauty_frame(
+        architecture,
+        bible,
+        ContinuityCanon(),
+        pack,
+        "narration",
+        "HEADLINE",
+        0,
+        style_source_path=str(pack.board_path),
+        init_strategy="reference_board",
+    )
+    diagnostics = brief.prompt_diagnostics
+    c.check(
+        "bloated initial prompt fits budget instead of crashing",
+        diagnostics.valid and diagnostics.word_count <= 380,
+        f"valid={diagnostics.valid} words={diagnostics.word_count} errors={diagnostics.errors}",
+    )
+    head = " ".join(brief.compiled_prompt.lower().split()[:55])
+    c.check(
+        "trimmed prompt still states style early",
+        any(token in head for token in ("scientific editorial", "illustration")),
+    )
+    # A second identical build is deterministic (resume reproduces the prompt).
+    system2 = FluxPromptSystem(
+        {"seed_base": 100, "aspect_ratio": "9:16", "min_initial_prompt_words": 80, "max_initial_prompt_words": 380},
+        base / "flux_prompt2",
+    )
+    pack2 = ReferencePack(scene_id="scene_1", board_path=str(pack.board_path))
+    brief2 = system2.beauty_frame(
+        architecture,
+        bible,
+        ContinuityCanon(),
+        pack2,
+        "narration",
+        "HEADLINE",
+        0,
+        style_source_path=str(pack.board_path),
+        init_strategy="reference_board",
+    )
+    c.check("prompt trimming is deterministic", brief2.compiled_prompt == brief.compiled_prompt)
+
+
+# ---------------------------------------------------------------------------
 # Offline end-to-end
 # ---------------------------------------------------------------------------
 
@@ -1248,6 +1339,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_openai_mocked_integration(c, base / "openai")
     _test_bfl_mocked_integration(c, base / "bfl")
     _test_llm_shape_coercion(c, base / "coercion")
+    _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")
     _test_service_api(c, base / "api")
