@@ -1320,8 +1320,18 @@ def _test_motion_eval(c: Collector) -> None:
         "captions": [],
     }
     rep = evaluate_plan(good)
-    c.check("object state change detected", rep["state_change"] and rep["object_motion"])
+    c.check("planned object state change detected", rep["state_change_planned"] and rep["object_motion"])
+    c.check("render_verified is None until post-render QC runs", rep["render_verified"] is None)
     c.check("causal clarity passes with object state change", causal_clarity_ok(good))
+
+    # Only a SECONDARY event -> not primary object motion (false-positive guard).
+    secondary_only = {
+        "causal_summary": "A subtle background drift.",
+        "events": [{"event_id": "E1", "representation": "mask_reveal", "secondary": True}],
+    }
+    c.check(
+        "secondary-only events are not primary object motion", evaluate_plan(secondary_only)["object_motion"] is False
+    )
 
     # Only camera + particles, no object motion -> must FAIL the gate.
     supporting_only = {

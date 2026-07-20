@@ -45,9 +45,21 @@ Semantic separation occurs only after the beauty frame is approved."""
         results = []
         previous_summary = ""
         for index, scene in enumerate(storyboard.scenes):
-            architecture = self.plan(scene, storyboard, bible, continuity, previous_summary, index=index, force=force)
+            architecture = self.plan(
+                scene,
+                storyboard,
+                bible,
+                continuity,
+                previous_summary,
+                index=index,
+                force=force,
+            )
             results.append(architecture)
-            previous_summary = architecture.visual_thesis + " | " + "; ".join(architecture.color_script)
+            previous_summary = (
+                architecture.visual_thesis
+                + " | "
+                + "; ".join(architecture.color_script)
+            )
         save_json(self.root / "scene_architectures.json", results)
         return results
 
@@ -131,7 +143,18 @@ Hard rules:
         event = scene.visual_event or scene.desired_change or scene.narration
         lower = event.lower()
         figures: list[FigureConstruction] = []
-        if any(token in lower for token in ("person", "human", "people", "hand", "body", "worker", "scientist")):
+        if any(
+            token in lower
+            for token in (
+                "person",
+                "human",
+                "people",
+                "hand",
+                "body",
+                "worker",
+                "scientist",
+            )
+        ):
             figures.append(
                 FigureConstruction(
                     figure_id="primary-human",
@@ -151,7 +174,11 @@ Hard rules:
             (
                 "water",
                 ("water", "rain", "ocean", "flood"),
-                ["layered contour rhythm", "directional surface lines", "selective foam breaks"],
+                [
+                    "layered contour rhythm",
+                    "directional surface lines",
+                    "selective foam breaks",
+                ],
             ),
             (
                 "atmosphere",
@@ -161,9 +188,17 @@ Hard rules:
             (
                 "concrete",
                 ("city", "building", "wall", "infrastructure"),
-                ["perspective-aligned edges", "irregular surface breaks", "window rhythm"],
+                [
+                    "perspective-aligned edges",
+                    "irregular surface breaks",
+                    "window rhythm",
+                ],
             ),
-            ("soil", ("soil", "ground", "slope", "land"), ["stratified contour", "grain marks", "compression cracks"]),
+            (
+                "soil",
+                ("soil", "ground", "slope", "land"),
+                ["stratified contour", "grain marks", "compression cracks"],
+            ),
             (
                 "vegetation",
                 ("tree", "plant", "crop", "ecosystem"),
@@ -184,7 +219,11 @@ Hard rules:
             materials.append(
                 MaterialMarkPlan(
                     material="primary physical system",
-                    visual_cues=["observed silhouette", "material-specific seams", "controlled value breaks"],
+                    visual_cues=[
+                        "observed silhouette",
+                        "material-specific seams",
+                        "controlled value breaks",
+                    ],
                     line_marks=["form-following interior lines"],
                 )
             )
@@ -192,15 +231,20 @@ Hard rules:
         motion_seams = []
         desired = (scene.desired_change or event).strip()
         if desired and desired.lower() not in {"hold", "none", "static"}:
-            method = "replacement_pose" if figures else "local_deformation"
-            if any(t in lower for t in ("rain", "wind", "water", "cloud", "smoke")):
-                method = "texture_loop"
+            # Representation is chosen from the *kind of state change*, never from
+            # a noun in the text. A noun like "water" does not imply a texture
+            # loop — water can rise, spread, surge, drip, freeze or evaporate, and
+            # each is a different before→after. The deterministic fallback cannot
+            # infer that semantics, so it uses an honest real state change
+            # (replacement poses when a figure exists, else a spatial semantic-mask
+            # reveal of the changed region) and lets the vision director refine it.
+            method = "replacement_pose" if figures else "semantic_mask"
             motion_seams.append(
                 MotionSeam(
                     seam_id="primary-causal-change",
                     subject=desired,
                     method=method,
-                    region="the smallest local region that visibly carries the causal change",
+                    region=desired,
                     resting_overlap_rule="The approved beauty frame remains visually continuous; the seam is hidden by overlap, value match or material edge.",
                     required_variants=["initial", "peak", "settled"]
                     if method == "replacement_pose"
@@ -208,6 +252,48 @@ Hard rules:
                 )
             )
 
+        # On-screen scientific UI is OPT-IN (audio narrates the shot); only add
+        # the overlay plane / annotations when explicitly enabled.
+        overlay_on = bool(self.config.get("enable_scientific_overlay", False))
+        depth_planes = [
+            DepthPlane(
+                plane_id="background",
+                depth="background",
+                contents="paper field and restrained contextual environment",
+                line_weight_role="light structural",
+            ),
+            DepthPlane(
+                plane_id="system",
+                depth="midground",
+                contents=event,
+                line_weight_role="primary authored contour",
+            ),
+            DepthPlane(
+                plane_id="causal-change",
+                depth="foreground",
+                contents=desired,
+                line_weight_role="selective emphasis",
+                movement_role="primary",
+            ),
+        ]
+        if overlay_on:
+            depth_planes.append(
+                DepthPlane(
+                    plane_id="scientific-ui",
+                    depth="overlay",
+                    contents="experiment identifier, status, one metric and concise labels",
+                    line_weight_role="technical",
+                )
+            )
+        scientific_annotations = (
+            [
+                scene.time_stage or "causal stage",
+                "one measured variable or condition",
+                "one direct label for the changed region",
+            ]
+            if overlay_on
+            else []
+        )
         return SceneIllustrationArchitecture(
             scene_id=scene.scene_id,
             beat_id=scene.beat_id,
@@ -215,10 +301,9 @@ Hard rules:
             visual_thesis=f"Show {event} as one coherent scientific environment, with the causal change dominating the eye path.",
             canvas=(storyboard.width, storyboard.height),
             composition_route=[
-                "experiment/status panel establishes context",
                 "primary silhouette establishes the physical system",
                 "directional contour or material flow leads to the causal change",
-                "single metric or annotation confirms the consequence",
+                "the changed region confirms the consequence",
             ],
             perspective=PerspectivePlan(
                 camera_height="slightly above or at subject center according to system scale",
@@ -226,30 +311,7 @@ Hard rules:
                 horizon_y=0.48,
                 vanishing_points=[(0.18, 0.48), (0.82, 0.48)],
             ),
-            depth_planes=[
-                DepthPlane(
-                    plane_id="background",
-                    depth="background",
-                    contents="paper field and restrained contextual environment",
-                    line_weight_role="light structural",
-                ),
-                DepthPlane(
-                    plane_id="system", depth="midground", contents=event, line_weight_role="primary authored contour"
-                ),
-                DepthPlane(
-                    plane_id="causal-change",
-                    depth="foreground",
-                    contents=desired,
-                    line_weight_role="selective emphasis",
-                    movement_role="primary",
-                ),
-                DepthPlane(
-                    plane_id="scientific-ui",
-                    depth="overlay",
-                    contents="experiment identifier, status, one metric and concise labels",
-                    line_weight_role="technical",
-                ),
-            ],
+            depth_planes=depth_planes,
             focal_subject=event,
             secondary_subjects=["contextual environment", "single scientific metric"],
             figure_construction=figures,
@@ -267,14 +329,12 @@ Hard rules:
                 "one blue accent encodes direction or flow",
                 "red appears only for critical threshold; yellow only for energy/light",
             ],
-            scientific_annotations=[
-                scene.time_stage or "causal stage",
-                "one measured variable or condition",
-                "one direct label for the changed region",
-            ],
+            scientific_annotations=scientific_annotations,
             motion_seams=motion_seams,
             animation_representation=[m.method for m in motion_seams] or ["hold"],
-            required_pose_variants=[v for m in motion_seams for v in m.required_variants],
+            required_pose_variants=[
+                v for m in motion_seams for v in m.required_variants
+            ],
             director_notes=[
                 "Create the full beauty composition first with Flux Kontext Pro.",
                 "Do not isolate subjects before the scene reads as a complete authored illustration.",

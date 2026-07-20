@@ -60,16 +60,23 @@ class SemanticSeparationPlanner:
                     pose_variant_paths=related_poses,
                 )
             )
-        layers.append(
-            SemanticLayer(
-                layer_id="scientific-overlay",
-                description="Experiment UI, labels, arrows, metrics and scientific annotations",
-                source_region="overlay safe zones",
-                extraction_method="scientific_overlay",
-                z_index=100,
-                locked=True,
-            )
+        # Scientific overlay / HUD is OPT-IN, not forced. Shorts are narrated by
+        # audio, so on-screen UI appears only when explicitly enabled (config)
+        # or when the director actually authored annotations for this scene.
+        overlay_requested = bool(self.config.get("enable_scientific_overlay", False)) or bool(
+            getattr(architecture, "scientific_annotations", None)
         )
+        if overlay_requested:
+            layers.append(
+                SemanticLayer(
+                    layer_id="scientific-overlay",
+                    description="Experiment UI, labels, arrows, metrics and scientific annotations",
+                    source_region="overlay safe zones",
+                    extraction_method="scientific_overlay",
+                    z_index=100,
+                    locked=True,
+                )
+            )
         contract = SemanticLayerContract(
             scene_id=architecture.scene_id,
             beauty_frame_path=beauty.image_path,
@@ -142,7 +149,10 @@ class SemanticMaskExtractor:
                 raise RuntimeError(f"Could not create semantic mask for {architecture.scene_id}/{layer.layer_id}")
             self._normalize_mask(result, output)
             layer.mask_path = str(output)
-        save_json(self.root / "contracts" / f"{architecture.scene_id}_extracted.json", contract)
+        save_json(
+            self.root / "contracts" / f"{architecture.scene_id}_extracted.json",
+            contract,
+        )
         return contract
 
     def _kontext_mask(self, beauty_path: str, region: str, output: Path, *, force: bool) -> Path | None:

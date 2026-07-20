@@ -39,8 +39,13 @@ def evaluate_plan(plan: Any) -> dict[str, Any]:
     def is_secondary(event: Any) -> bool:
         return bool(_get(event, "secondary", False))
 
-    object_motion = any(not is_secondary(e) for e in events) or bool(events)
-    state_change = any(rep(e) in _STATE_CHANGE_REPRESENTATIONS for e in events)
+    # A *primary* (non-secondary) event must carry the object motion. A shot
+    # whose only events are secondary is NOT primary object motion.
+    object_motion = any(not is_secondary(e) for e in events)
+    # NOTE: this is *planned* state change inferred from the representation name.
+    # It is NOT proof the render actually moved anything — post-render vision QC
+    # sets ``render_verified`` from real frame evidence.
+    state_change_planned = any(rep(e) in _STATE_CHANGE_REPRESENTATIONS and not is_secondary(e) for e in events)
 
     camera = _get(plan, "camera")
     camera_motion = bool(
@@ -59,9 +64,9 @@ def evaluate_plan(plan: Any) -> dict[str, Any]:
 
     causal_summary = str(_get(plan, "causal_summary", "")).strip()
     supporting_motion = camera_motion or particle_motion or text_motion
-    # Clear when the plan declares the change AND shows it as an object state
-    # change.
-    causal_clarity = bool(causal_summary) and state_change
+    # Planned clarity: the plan declares the change AND schedules a primary
+    # object state change to show it. This is a *necessary* condition, not proof.
+    causal_clarity_planned = bool(causal_summary) and state_change_planned
     # A *declared hold* is a summary with NO motion of any kind. A summary with
     # only supporting (camera/particle/text) motion is NOT a hold — it's the
     # anti-pattern this evaluator exists to catch.
@@ -69,11 +74,13 @@ def evaluate_plan(plan: Any) -> dict[str, Any]:
 
     return {
         "object_motion": object_motion,
-        "state_change": state_change,
+        "state_change_planned": state_change_planned,
         "camera_motion": camera_motion,
         "particle_motion": particle_motion,
         "text_motion": text_motion,
-        "causal_clarity": causal_clarity,
+        "causal_clarity_planned": causal_clarity_planned,
+        # Set only by post-render vision QC from real frame evidence (None = not run).
+        "render_verified": None,
         "declared_hold": declared_hold,
         "primary_carries_motion": object_motion,
         # Supporting motion must never be the *only* motion in an action shot.
@@ -88,4 +95,4 @@ def causal_clarity_ok(plan: Any) -> bool:
     report = evaluate_plan(plan)
     if report["supporting_only_warning"]:
         return False
-    return report["causal_clarity"] or report["declared_hold"]
+    return report["causal_clarity_planned"] or report["declared_hold"]
