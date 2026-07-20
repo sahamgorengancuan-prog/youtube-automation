@@ -21,6 +21,9 @@ class PILHybridRenderer:
     def __init__(self, config: dict[str, Any], root: str | Path):
         self.config = config
         self.root = ensure_dir(root)
+        from .motion_graphics import CinematicFinisher
+
+        self.finisher = CinematicFinisher(config)
 
     def render(self, scenes: list[HybridScenePackage], output: str | Path) -> Path:
         output = Path(output)
@@ -30,8 +33,17 @@ class PILHybridRenderer:
         for old in frame_dir.glob("*.png"):
             old.unlink()
         global_index = 0
-        for scene in scenes:
+        total_scenes = len(scenes)
+        for scene_index, scene in enumerate(scenes, 1):
             assets = self._load_layers(scene)
+            finish_ctx = {
+                "scene_id": scene.scene_id,
+                "headline": scene.headline,
+                "narration": scene.narration,
+                "index": scene_index,
+                "total_scenes": total_scenes,
+                # variable omitted -> HUD derives a measured-variable label from fx
+            }
             for frame in range(scene.duration_frames):
                 canvas = Image.new("RGBA", scene.canvas, scene.background)
                 for layer in sorted(scene.layers, key=lambda x: x.z_index):
@@ -39,7 +51,8 @@ class PILHybridRenderer:
                     if image is None:
                         continue
                     canvas.alpha_composite(image.resize(scene.canvas))
-                canvas.convert("RGB").save(frame_dir / f"frame_{global_index:06d}.png")
+                finished = self.finisher.finish(canvas.convert("RGB"), finish_ctx, frame, scene.duration_frames)
+                finished.save(frame_dir / f"frame_{global_index:06d}.png")
                 global_index += 1
         if not shutil.which("ffmpeg"):
             raise RuntimeError("ffmpeg is required for deterministic preview rendering")

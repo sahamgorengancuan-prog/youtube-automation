@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-07-20T03:10:00+00:00",
+  "generated_at": "2026-07-20T04:00:00+00:00",
   "package_version": "10.2.0",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 301,
+  "total_checks": 308,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
@@ -14,7 +14,10 @@
     "vision_two_tier_escalation_tests": "PASS",
     "director_review_salvage_tests": "PASS",
     "reference_motion_guidance_tests": "PASS",
+    "cinematic_finisher_tests": "PASS",
+    "finalization_tests_detail": "PASS (164)",
     "linear_notebook_double_execution": "PASS (fresh + resume, 52 cells, 0 errors)",
+    "offline_render_motion": "PASS (cinematic finisher: continuous per-frame motion + captions + HUD + particles rendered end-to-end)",
     "live_openai_smoke": "NOT RUN",
     "live_bfl_smoke": "NOT RUN",
     "docker_build": "NOT RUN (requires Docker: docker build -t scistudio-v10 .)"

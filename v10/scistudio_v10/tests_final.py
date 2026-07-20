@@ -1190,6 +1190,43 @@ def _test_director_review_salvage(c: Collector, base: Path) -> None:
     c.check("no-reviewer sentinel is not silently approved", order.status == "requires_human_or_vision_director")
 
 
+def _test_cinematic_finisher(c: Collector, base: Path) -> None:
+    """The finishing pass must add real per-frame motion (camera + particles),
+    infer the right effect from scene text, and never raise."""
+    from PIL import Image, ImageDraw
+
+    from .motion_graphics import CinematicFinisher
+
+    canvas = Image.new("RGB", (360, 640), "#7fa8c9")
+    ImageDraw.Draw(canvas).ellipse([120, 220, 240, 340], fill="#20406a")
+    fin = CinematicFinisher({})
+    ctx = {
+        "scene_id": "S01",
+        "headline": "A World of Unending Rain",
+        "narration": "What happens if it rains nonstop?",
+        "index": 1,
+        "total_scenes": 8,
+    }
+    c.check("fx inferred from rain text", fin.infer_fx(ctx["headline"]) == "rain")
+    c.check("fx inferred from wind text", fin.infer_fx("a strong gale of wind") == "wind")
+    a = fin.finish(canvas, ctx, 5, 120)
+    b = fin.finish(canvas, ctx, 55, 120)
+    c.check("finished frame keeps canvas size", a.size == canvas.size)
+
+    def diff(x, y):
+        xd, yd = list(x.convert("L").getdata()), list(y.convert("L").getdata())
+        return sum(abs(p - q) for p, q in zip(xd, yd)) / (len(xd) * 255.0)
+
+    c.check("finisher produces real inter-frame motion", diff(a, b) > 0.01, str(diff(a, b)))
+    c.check("finisher differs from static input (captions/hud drawn)", diff(a, canvas) > 0.01)
+    # Disabled finisher is a pass-through.
+    off = CinematicFinisher({"cinematic_finish": False})
+    c.check("disabled finisher is a no-op", off.finish(canvas, ctx, 5, 120) is canvas)
+    # Never raises on a malformed context.
+    fin.finish(canvas, {}, 0, 0)
+    c.check("finisher tolerates empty context", True)
+
+
 def _test_reference_motion_guidance(c: Collector) -> None:
     """The reference video's measured motion dynamics steer the animation
     director's prompt; no profile means no guidance (behaviour unchanged)."""
@@ -1603,6 +1640,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_vision_two_tier_escalation(c, base / "vision_two_tier")
     _test_director_review_salvage(c, base / "director_salvage")
     _test_reference_motion_guidance(c)
+    _test_cinematic_finisher(c, base / "cinematic")
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")
