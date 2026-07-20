@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageChops, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageFilter
 
 from .schemas import (
     AnimationPlan,
@@ -44,17 +44,30 @@ class HybridPackageBuilder:
 
         if temporal_clip_path and Path(temporal_clip_path).exists():
             layers.append(
-                HybridLayer(layer_id="temporal-beauty", kind="video_clip", path=temporal_clip_path, z_index=0)
+                HybridLayer(
+                    layer_id="temporal-beauty",
+                    kind="video_clip",
+                    path=temporal_clip_path,
+                    z_index=0,
+                )
             )
             if overlay_path:
                 layers.append(
-                    HybridLayer(layer_id="scientific-overlay", kind="svg_overlay", path=overlay_path, z_index=100)
+                    HybridLayer(
+                        layer_id="scientific-overlay",
+                        kind="svg_overlay",
+                        path=overlay_path,
+                        z_index=100,
+                    )
                 )
             package = HybridScenePackage(
                 scene_id=scene.scene_id,
                 duration_frames=animation.duration_frames,
                 fps=animation.fps,
-                canvas=(int(self.config.get("width", 1080)), int(self.config.get("height", 1920))),
+                canvas=(
+                    int(self.config.get("width", 1080)),
+                    int(self.config.get("height", 1920)),
+                ),
                 narration=scene.narration,
                 headline=scene.headline,
                 layers=layers,
@@ -117,17 +130,28 @@ class HybridPackageBuilder:
             base = beauty
         base_path = out_dir / "beauty_base.png"
         base.save(base_path)
-        layers.insert(0, HybridLayer(layer_id="beauty-base", kind="raster", path=str(base_path), z_index=0))
+        layers.insert(
+            0,
+            HybridLayer(layer_id="beauty-base", kind="raster", path=str(base_path), z_index=0),
+        )
         if overlay_path:
             layers.append(
-                HybridLayer(layer_id="scientific-overlay", kind="svg_overlay", path=overlay_path, z_index=100)
+                HybridLayer(
+                    layer_id="scientific-overlay",
+                    kind="svg_overlay",
+                    path=overlay_path,
+                    z_index=100,
+                )
             )
 
         package = HybridScenePackage(
             scene_id=scene.scene_id,
             duration_frames=animation.duration_frames,
             fps=animation.fps,
-            canvas=(int(self.config.get("width", 1080)), int(self.config.get("height", 1920))),
+            canvas=(
+                int(self.config.get("width", 1080)),
+                int(self.config.get("height", 1920)),
+            ),
             narration=scene.narration,
             headline=scene.headline,
             layers=layers,

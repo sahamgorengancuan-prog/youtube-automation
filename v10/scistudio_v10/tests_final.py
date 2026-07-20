@@ -1344,6 +1344,70 @@ def _test_mask_quality_gate(c: Collector, base: Path) -> None:
     )
 
 
+def _test_renderer_parity(c: Collector, base: Path) -> None:
+    """The Remotion project must interpret the SAME DSL the PIL renderer does:
+    every representation, ALL events per layer (not one via .find), camera,
+    effects and captions."""
+    from .hybrid_render import RemotionHybridExporter
+    from .schemas import AnimationPlan, HybridLayer, HybridScenePackage, MotionEvent
+
+    layer_img = base / "layer.png"
+    _image_file(layer_img)
+    events = [
+        MotionEvent(
+            event_id="E1", reason_id="r", target_layer="obj", representation="translate", start_frame=0, end_frame=10
+        ),
+        MotionEvent(
+            event_id="E2",
+            reason_id="r",
+            target_layer="obj",
+            representation="rotate",
+            start_frame=0,
+            end_frame=10,
+            secondary=True,
+        ),
+    ]
+    plan = AnimationPlan(
+        scene_id="S01",
+        duration_frames=12,
+        events=events,
+        camera={"move": "push_in", "magnitude": 0.06, "start_frame": 0, "end_frame": 12},
+        effects=[{"effect": "rain", "intensity": 0.7, "start_frame": 0, "end_frame": 12}],
+        captions=[{"kind": "headline", "text": "Sea level rises", "start_frame": 0, "end_frame": 12}],
+    )
+    scene = HybridScenePackage(
+        scene_id="S01",
+        duration_frames=12,
+        animation=plan,
+        layers=[HybridLayer(layer_id="obj", kind="raster", path=str(layer_img), z_index=15, pivot=(0.4, 0.6))],
+    )
+    project = RemotionHybridExporter({}, base / "remotion").create_project([scene])
+    tsx = (Path(project) / "src" / "index.tsx").read_text()
+    for rep in (
+        "translate",
+        "rotate",
+        "scale",
+        "opacity",
+        "mask_reveal",
+        "replacement_pose",
+        "texture_loop",
+        "local_deformation",
+    ):
+        c.check(f"remotion handles representation {rep}", f"'{rep}'" in tsx)
+    c.check(
+        "remotion iterates ALL events per layer (filter, not find)",
+        "eventsFor" in tsx and ".find((e:any)=>e.target_layer" not in tsx,
+    )
+    c.check("remotion applies easing", "ease(" in tsx)
+    c.check("remotion executes camera directive", "cameraStyle" in tsx)
+    c.check("remotion executes effect directives", "Particles" in tsx)
+    c.check("remotion executes caption directives", "Captions" in tsx)
+    c.check("remotion transforms about the object pivot", "transformOrigin" in tsx and "layer.pivot" in tsx)
+    data = json.loads((Path(project) / "public" / "data.json").read_text())
+    anim = data["scenes"][0]["animation"]
+    c.check("data.json carries the full DSL", "camera" in anim and "effects" in anim and "captions" in anim)
+
+
 def _test_clean_plate(c: Collector, base: Path) -> None:
     """The clean background plate must reconstruct behind a removed object, not
     leave a transparent hole or the object's own colour."""
@@ -1849,6 +1913,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_object_grounding(c, base / "grounding")
     _test_mask_quality_gate(c, base / "mask_qc")
     _test_clean_plate(c, base / "clean_plate")
+    _test_renderer_parity(c, base / "parity")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
