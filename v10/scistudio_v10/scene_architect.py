@@ -55,11 +55,7 @@ Semantic separation occurs only after the beauty frame is approved."""
                 force=force,
             )
             results.append(architecture)
-            previous_summary = (
-                architecture.visual_thesis
-                + " | "
-                + "; ".join(architecture.color_script)
-            )
+            previous_summary = architecture.visual_thesis + " | " + "; ".join(architecture.color_script)
         save_json(self.root / "scene_architectures.json", results)
         return results
 
@@ -332,9 +328,7 @@ Hard rules:
             scientific_annotations=scientific_annotations,
             motion_seams=motion_seams,
             animation_representation=[m.method for m in motion_seams] or ["hold"],
-            required_pose_variants=[
-                v for m in motion_seams for v in m.required_variants
-            ],
+            required_pose_variants=[v for m in motion_seams for v in m.required_variants],
             director_notes=[
                 "Create the full beauty composition first with Flux Kontext Pro.",
                 "Do not isolate subjects before the scene reads as a complete authored illustration.",

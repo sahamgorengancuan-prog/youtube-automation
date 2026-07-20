@@ -31,9 +31,7 @@ from .utils import ensure_dir
 class ObjectSegmenter:
     """Produces binary object masks for beauty-frame layers (SAM2 or heuristic)."""
 
-    def __init__(
-        self, config: dict[str, Any] | None = None, root: str | Path | None = None
-    ):
+    def __init__(self, config: dict[str, Any] | None = None, root: str | Path | None = None):
         self.config = config or {}
         self.root = ensure_dir(root) if root is not None else None
         self.use_sam2 = bool(self.config.get("use_sam2", True))
@@ -71,9 +69,7 @@ class ObjectSegmenter:
         ensure_dir(output.parent)
         if self.available_sam2():
             try:
-                result = self._sam2_mask(
-                    beauty_path, region, output, bbox, positive_points, negative_points
-                )
+                result = self._sam2_mask(beauty_path, region, output, bbox, positive_points, negative_points)
                 if result is not None:
                     return result
             except Exception:
@@ -135,9 +131,7 @@ class ObjectSegmenter:
         # Distinctness from other objects' masks.
         for other in others or []:
             try:
-                if self._mask_iou(mask_path, other) > float(
-                    self.config.get("mask_max_dup_iou", 0.85)
-                ):
+                if self._mask_iou(mask_path, other) > float(self.config.get("mask_max_dup_iou", 0.85)):
                     report["reasons"].append("duplicate_of_other_object")
                     break
             except Exception:
@@ -161,12 +155,8 @@ class ObjectSegmenter:
 
         ma = Image.open(a).convert("1")
         mb = Image.open(b).convert("1").resize(ma.size)
-        inter = sum(
-            ImageChops.logical_and(ma, mb).point(lambda p: 1 if p else 0).getdata()
-        )
-        union = sum(
-            ImageChops.logical_or(ma, mb).point(lambda p: 1 if p else 0).getdata()
-        )
+        inter = sum(ImageChops.logical_and(ma, mb).point(lambda p: 1 if p else 0).getdata())
+        union = sum(ImageChops.logical_or(ma, mb).point(lambda p: 1 if p else 0).getdata())
         return inter / max(1, union)
 
     # -- SAM2 backend (best effort; runs in Colab with a GPU) ---------------
@@ -195,9 +185,7 @@ class ObjectSegmenter:
         predict_kwargs: dict[str, Any] = {"verbose": False}
         if bbox is not None:
             x0, y0, x1, y1 = bbox
-            predict_kwargs["bboxes"] = [
-                [x0 * width, y0 * height, x1 * width, y1 * height]
-            ]
+            predict_kwargs["bboxes"] = [[x0 * width, y0 * height, x1 * width, y1 * height]]
         pts: list[list[float]] = []
         labels: list[int] = []
         for p in positive_points or []:
@@ -215,11 +203,7 @@ class ObjectSegmenter:
         if not results:
             return None
         masks = getattr(results[0], "masks", None)
-        if (
-            masks is None
-            or getattr(masks, "data", None) is None
-            or len(masks.data) == 0
-        ):
+        if masks is None or getattr(masks, "data", None) is None or len(masks.data) == 0:
             return None
         arr = masks.data[0].cpu().numpy()
         binary = (arr > 0.5).astype("uint8") * 255

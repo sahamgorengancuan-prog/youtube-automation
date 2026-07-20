@@ -257,11 +257,96 @@ production, but the aesthetic vision critic now runs a two-tier policy:
   before results reach downstream schemas.
 
 Configuration (`llm.*`): `vision_provider_order` (e.g.
-`["openrouter", "gemini"]`), `openrouter_vision_model`, `gemini_vision_model`,
+`["openrouter"]`), `openrouter_vision_model`,
+`openrouter_vision_escalation_model` (`google/gemini-2.5-flash`),
 `vision_escalation_enabled`, `vision_escalation_confidence`. Production now
 authorizes `openai`/`openrouter`/`gemini` for **vision only**; local/procedural
-vision review is still rejected. New optional secrets: `OPENROUTER_API_KEY`
-(Qwen) and `GEMINI_API_KEY` (Gemini); when both are absent, vision review
-falls back to OpenAI. Covered by `_test_vision_two_tier_escalation` and the
-updated provider-lock tests; full offline suite **288** checks, both notebooks
-execute cleanly twice (fresh + resume).
+vision review is still rejected.
+
+**Provider routing is by key, per the operator's directive:** OpenAI reasoning
+uses `OPENAI_API_KEY`; **both Qwen VL and Gemini 2.5 Flash vision go through the
+single `OPENROUTER_API_KEY`** (Gemini is *not* a separate key — the escalation
+tier is `google/gemini-2.5-flash` on OpenRouter); BFL images use `BFL_API_KEY`.
+When OpenRouter is absent, vision review falls back to OpenAI. Covered by
+`_test_vision_two_tier_escalation`, `_test_director_review_salvage` and the
+updated provider-lock tests.
+
+## 12. Addendum — animation architecture rework (grounded motion, 10.2.0)
+
+The earlier finisher produced technically-valid MP4s that did not *read* as
+explanatory animation: art direction was a single degrading editorial-ink
+canon, shot states were often degenerate (first frame == last frame), and no
+object was ever actually separated from its background. The rework rebuilt the
+motion path around one principle — **the video is alive when the causal object
+changes, not when every pixel jitters** — and enforces it in strict priority
+order. Reasoning stays OpenAI-only and images stay BFL-only; nothing here
+introduces a new production reasoning or image provider.
+
+### P0 — Correctness fixes (foundation)
+
+* `motion_eval.py`: removed the `or bool(events)` false-positive so a shot with
+  only supporting events (camera/particles/captions) no longer counts as object
+  motion; the causal-clarity gate now fails "supporting-only" shots and passes
+  only a real object state change or a *declared* hold.
+* `scene_architect.py`: deleted keyword→method inference
+  (`rain/wind/water → texture_loop`); a seam's method is chosen from whether the
+  scene has figures (`replacement_pose` vs `semantic_mask`), and the scientific
+  HUD / annotation overlays are **opt-in** (`enable_scientific_overlay`), off by
+  default — English audio narrates, captions are not forced.
+
+### P1 — Object grounding before segmentation (`object_grounding.py`)
+
+`ObjectGrounder` authors an `ObjectManifest` *before* any mask is cut: per
+object a bbox, positive/negative points, a transform pivot, a depth band and
+declared start/end states, with the causal subject marked. The vision director
+(Qwen VL via the LLM router) proposes it; a deterministic fallback derives one
+object per motion seam with boxes spread across the frame. This replaces feeding
+SAM2 the image centre every time.
+
+### P2 — Mask quality gate with retry (`sam2_segment.py`)
+
+`ObjectSegmenter.mask_for(...)` is prompted by the grounded bbox + points, not a
+centre point. `mask_qc(...)` then *rejects* a mask that is empty,
+near-full-canvas, too small, mismatched to its bbox, or a duplicate of another
+object's mask (IoU). A rejected mask retries once (bbox-clipped heuristic) and
+the QC verdict is recorded on the layer — a written file is no longer treated as
+proof the object was separated.
+
+### P3 — Clean plate + object-local layers (`hybrid_package.py`)
+
+Moving objects are removed from the background into an inpainted **clean plate**
+(OpenCV Telea, PIL edge-bleed fallback) so a foreground object leaves the plate
+behind it, not a hole. Layers carry the grounded depth as a real z-index (no
+longer flattened to a single plane) and an object pivot, so rotate/scale happen
+about the object rather than the canvas centre.
+
+### P4 — Renderer parity (`hybrid_render.py`)
+
+The offline PIL renderer and the production Remotion template now consume the
+**same** authored DSL. The rewritten Remotion `_typescript()` iterates *all*
+events per layer (previously `.find()` took only the first), applies shared
+easing, transforms about each layer's pivot/`transformOrigin`, and executes the
+opt-in camera / particle / caption directives — so the offline preview and the
+production render agree on what moves.
+
+### P5 — Post-render QC (`post_render_qc.py`)
+
+`render_verified` is decided from the **rendered pixels**, not from JSON
+presence: `verify(...)` measures change inside vs. outside the causal object's
+mask between the shot's real first and last frames. An action shot must show the
+object region actually change (else `render_verified=False`, reason "planned
+object motion did not produce a visible change (static render)"); a declared
+hold must *not* move. Wired into `pipeline.py` as a guarded pass that writes
+`20_render_qc/*.json`. An optional Qwen VL before/after gate is GPU/API-gated.
+
+### Honesty about what is offline-validated vs. gated
+
+The full offline suite (**360** checks: 92 regression + 216 finalization + 52
+notebook) passes, and the linear pipeline runs end-to-end offline with zero
+errors, emitting the QC reports. The SAM2 backend, Qwen VL grounding/QC, the
+Node/Remotion render and the vision QC gate are **GPU/API/Node-gated** and are
+exercised in Colab; offline they run through deterministic fallbacks. Those
+fallbacks are validated to behave correctly — including the honest negative
+result: on the static deterministic path, post-render QC correctly reports
+`render_verified=False`, proving the gate catches a render that did not move the
+object rather than rubber-stamping it. Version: package **10.2.0**.
