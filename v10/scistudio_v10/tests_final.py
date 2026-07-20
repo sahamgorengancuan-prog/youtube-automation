@@ -1286,6 +1286,64 @@ def _test_object_segmenter(c: Collector, base: Path) -> None:
     c.check("mask_generator adapter works", gen(str(beauty), "the subject", base / "mask2.png") is not None)
 
 
+def _test_object_grounding(c: Collector, base: Path) -> None:
+    """Grounding locates each causal object with a real bbox/points/pivot before
+    SAM2. Without a vision model it uses the deterministic fallback."""
+    from types import SimpleNamespace
+
+    from .object_grounding import ObjectGrounder
+
+    arch = SimpleNamespace(
+        scene_id="S01",
+        motion_seams=[
+            SimpleNamespace(seam_id="primary-causal-change", subject="river overtops the bank", region="river"),
+            SimpleNamespace(seam_id="secondary", subject="rising water line", region="water"),
+        ],
+    )
+    beauty = base / "beauty.png"
+    _image_file(beauty)
+    g = ObjectGrounder(None, {}, base / "grounding")  # llm=None -> fallback grounding
+    manifest = g.ground(beauty, arch)
+    c.check("grounding falls back without a vision model", manifest.grounding_source == "deterministic-fallback")
+    c.check("one object per seam", len(manifest.objects) == 2)
+    obj = manifest.objects[0]
+    c.check("object is bound to its seam", obj.seam_id == "primary-causal-change")
+    c.check("bbox normalized and valid", all(0.0 <= v <= 1.0 for v in obj.bbox) and obj.bbox[2] > obj.bbox[0])
+    c.check("object has a positive prompt point", len(obj.positive_points) >= 1)
+    c.check("primary object flagged as causal subject", obj.is_causal_subject)
+
+
+def _test_mask_quality_gate(c: Collector, base: Path) -> None:
+    """mask_qc rejects empty, near-full and duplicate masks; accepts a good
+    partial mask that overlaps the target bbox."""
+    from PIL import Image, ImageDraw
+
+    from .sam2_segment import ObjectSegmenter
+
+    seg = ObjectSegmenter({"use_sam2": False}, base / "seg")
+    base.mkdir(parents=True, exist_ok=True)
+    empty = base / "empty.png"
+    Image.new("L", (200, 200), 0).save(empty)
+    c.check("empty mask fails QC", "empty" in seg.mask_qc(empty).get("reasons", []))
+    full = base / "full.png"
+    Image.new("L", (200, 200), 255).save(full)
+    c.check("near-full-canvas mask fails QC", "near_full_canvas" in seg.mask_qc(full).get("reasons", []))
+    good = base / "good.png"
+    gim = Image.new("L", (200, 200), 0)
+    ImageDraw.Draw(gim).rectangle([60, 60, 140, 140], fill=255)
+    gim.save(good)
+    ok_report = seg.mask_qc(good, (0.25, 0.25, 0.75, 0.75))
+    c.check("good partial mask passes QC", ok_report["ok"], str(ok_report))
+    c.check(
+        "mask outside target bbox fails QC",
+        "bbox_mismatch" in seg.mask_qc(good, (0.0, 0.0, 0.1, 0.1)).get("reasons", []),
+    )
+    c.check(
+        "duplicate mask flagged",
+        "duplicate_of_other_object" in seg.mask_qc(good, (0.25, 0.25, 0.75, 0.75), [good]).get("reasons", []),
+    )
+
+
 def _test_flat_explainer_style(c: Collector) -> None:
     """Art direction must steer flat vector explainer, not painterly ink."""
     from .schemas import HardCodedStyleCanon
@@ -1766,6 +1824,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_shot_executor(c, base / "shot_executor")
     _test_motion_eval(c)
     _test_object_segmenter(c, base / "segmenter")
+    _test_object_grounding(c, base / "grounding")
+    _test_mask_quality_gate(c, base / "mask_qc")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")

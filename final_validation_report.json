@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-07-20T06:30:00+00:00",
+  "generated_at": "2026-07-20T08:00:00+00:00",
   "package_version": "10.2.0",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 326,
+  "total_checks": 339,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (182)",
+    "finalization_tests": "PASS (195)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -22,7 +22,9 @@
     "shot_executor_tests": "PASS (DSL-driven: nothing auto-activates; directives executed exactly)",
     "motion_eval_causal_gate_tests": "PASS (supporting-only motion fails; object state change or declared hold passes)",
     "object_segmentation_tests": "PASS (SAM2 backend + heuristic fallback; binary mask separates subject from background)",
-    "flat_explainer_style_tests": "PASS (canon/bible/FLUX prompt steer flat vector, not painterly ink)"
+    "flat_explainer_style_tests": "PASS (canon/bible/FLUX prompt steer flat vector, not painterly ink)",
+    "object_grounding_tests": "PASS (ObjectManifest bbox/points/pivot/states; vision-director + deterministic fallback)",
+    "mask_quality_gate_tests": "PASS (rejects empty/near-full/bbox-mismatch/duplicate; retry then QC)"
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
@@ -31,7 +33,7 @@
     "reference_motion": "Reference video motion dynamics (energy/tempo/cut-rate) measured via frame differencing and fed to the animation director so motion matches the reference's rhythm; guarded (no-op if measurement fails).",
     "anthropic_runtime_dependency": false,
     "animation": "Authored animation DSL per shot (Director-authored: object state change is primary; camera/particles/captions are opt-in supporting elements, off by default). Renderer is a pure executor. Primary quality gate is causal clarity, not motion energy.",
-    "object_separation": "SAM2 (Ultralytics/segment-anything, GPU) with a local heuristic fallback (colour-distance-from-background) that runs without GPU; produces per-object alpha masks -> cutouts so MotionEvents move individual objects. Visible pixels always from the beauty frame (no vectorization).",
+    "object_separation": "Grounded: ObjectGrounder (Qwen VL authors bbox/points/pivot/depth/states; deterministic fallback) -> SAM2 prompted by that grounding (not image centre), heuristic fallback -> mask QC gate (empty/near-full/bbox-overlap/duplicate) with retry. Per-object alpha masks; visible pixels always from the beauty frame.",
     "art_direction": "Flat vector science-explainer (Kurzgesagt-style): bold separable shapes, clean outlines, flat fills, negative space for labels. Replaces the painterly editorial-ink canon."
   }
 }

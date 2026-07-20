@@ -125,35 +125,89 @@ class SemanticMaskExtractor:
         force: bool = False,
     ) -> SemanticLayerContract:
         seam_map = {m.seam_id: m for m in architecture.motion_seams}
+        # Ground the causal objects (bbox/points/pivot/depth) before segmenting,
+        # so SAM2 is prompted at the right object rather than the image centre.
+        obj_map = self._ground_objects(contract, architecture, force=force)
+        written_masks: list[str] = []
         for layer in contract.layers:
             if layer.extraction_method not in {"kontext_isolation", "external_mask"}:
                 continue
             target = seam_map.get(layer.layer_id)
             if target is None:
                 continue
+            obj = obj_map.get(layer.layer_id)
+            if obj is not None:  # attach grounded geometry for downstream stages
+                layer.bbox = obj.bbox
+                layer.pivot = obj.pivot
+                layer.positive_points = obj.positive_points
+                layer.negative_points = obj.negative_points
             output = self.root / architecture.scene_id / f"{layer.layer_id}_mask.png"
             ensure_dir(output.parent)
             if output.exists() and output.stat().st_size > 256 and not force:
                 layer.mask_path = str(output)
+                written_masks.append(str(output))
                 continue
-            if self.mask_generator is not None:
-                result = self.mask_generator(contract.beauty_frame_path, target.region, output)
-            elif self._segmenter is not None:
-                # SAM2 (or heuristic) local segmentation — no paid image call.
-                result = self._segmenter.mask_for(contract.beauty_frame_path, target.region, output)
-                if result is None:  # segmentation failed -> last-resort drawn mask
-                    result = self._kontext_mask(contract.beauty_frame_path, target.region, output, force=force)
-            else:
-                result = self._kontext_mask(contract.beauty_frame_path, target.region, output, force=force)
+            result, qc = self._make_mask(contract.beauty_frame_path, target.region, output, obj, written_masks, force)
             if result is None:
                 raise RuntimeError(f"Could not create semantic mask for {architecture.scene_id}/{layer.layer_id}")
             self._normalize_mask(result, output)
             layer.mask_path = str(output)
+            layer.mask_qc = qc
+            written_masks.append(str(output))
         save_json(
             self.root / "contracts" / f"{architecture.scene_id}_extracted.json",
             contract,
         )
         return contract
+
+    def _ground_objects(self, contract, architecture, *, force):
+        if self._segmenter is None or not bool(self.config.get("use_object_grounding", True)):
+            return {}
+        try:
+            from .object_grounding import ObjectGrounder
+
+            grounder = ObjectGrounder(self.llm, self.config, self.root / "grounding")
+            manifest = grounder.ground(contract.beauty_frame_path, architecture, force=force)
+            return {o.seam_id: o for o in manifest.objects if o.seam_id}
+        except Exception:
+            return {}
+
+    def _make_mask(self, beauty_path, region, output, obj, others, force):
+        """Create a mask and quality-gate it, retrying once on failure. Returns
+        (mask_path_or_None, qc_report)."""
+        if self.mask_generator is not None:
+            return self.mask_generator(beauty_path, region, output), {"ok": True, "source": "injected"}
+        if self._segmenter is None:
+            return self._kontext_mask(beauty_path, region, output, force=force), {"ok": True, "source": "kontext"}
+        bbox = obj.bbox if obj is not None else None
+        pos = obj.positive_points if obj is not None else None
+        neg = obj.negative_points if obj is not None else None
+        result = self._segmenter.mask_for(
+            beauty_path, region, output, bbox=bbox, positive_points=pos, negative_points=neg
+        )
+        qc = (
+            self._segmenter.mask_qc(output, bbox, others)
+            if result is not None
+            else {"ok": False, "reasons": ["no_mask"]}
+        )
+        if result is not None and qc.get("ok"):
+            return result, qc
+        # Retry: a bbox-clipped heuristic mask, then re-QC. Keep it if it passes.
+        try:
+            retry = self._segmenter._heuristic_mask(beauty_path, Path(output), bbox)
+            retry_qc = self._segmenter.mask_qc(retry, bbox, others)
+            retry_qc["retried"] = True
+            if retry_qc.get("ok"):
+                return retry, retry_qc
+        except Exception:
+            pass
+        # Both attempts failed QC: fall back to the drawn mask if available,
+        # otherwise keep the best-effort mask but record that QC did not pass.
+        if result is not None:
+            qc["accepted_despite_qc"] = True
+            return result, qc
+        drawn = self._kontext_mask(beauty_path, region, output, force=force)
+        return drawn, {"ok": bool(drawn), "source": "kontext", "reasons": qc.get("reasons", [])}
 
     def _kontext_mask(self, beauty_path: str, region: str, output: Path, *, force: bool) -> Path | None:
         raw = output.with_name(output.stem + "_raw.png")

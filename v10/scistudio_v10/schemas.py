@@ -738,6 +738,39 @@ class BeautyFrame(OpenModel):
     seed: int | None = None
 
 
+class ObjectManifest(OpenModel):
+    """A grounded object in an approved beauty frame.
+
+    This is the *grounding contract* SAM2 executes: the vision director locates
+    each causal object with a real bounding box and prompt points (not a
+    placeholder region string or the image centre), plus the depth order, a
+    pivot/anchor for object-local transforms, and the before→after states that
+    define the animation. All coordinates are normalized 0..1.
+    """
+
+    object_id: str
+    label: str = ""
+    seam_id: str = ""  # links to the motion seam / semantic layer this object drives
+    bbox: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)  # x0,y0,x1,y1
+    positive_points: list[tuple[float, float]] = Field(default_factory=list)
+    negative_points: list[tuple[float, float]] = Field(default_factory=list)
+    depth: Literal["background", "midground", "foreground", "overlay"] = "midground"
+    pivot: tuple[float, float] = (0.5, 0.5)
+    initial_state: str = ""
+    target_state: str = ""
+    is_causal_subject: bool = False
+    grounding_confidence: float = 0.0
+
+
+class SceneObjectManifest(OpenModel):
+    """All grounded objects for one shot, authored before segmentation."""
+
+    scene_id: str
+    beauty_frame_path: str = ""
+    objects: list[ObjectManifest] = Field(default_factory=list)
+    grounding_source: str = ""  # "vision-director" | "deterministic-fallback"
+
+
 class SemanticLayer(OpenModel):
     layer_id: str
     description: str
@@ -754,6 +787,14 @@ class SemanticLayer(OpenModel):
     mask_path: str = ""
     image_path: str = ""
     pose_variant_paths: list[str] = Field(default_factory=list)
+    # Grounded object geometry (from ObjectManifest); drives SAM2 prompting,
+    # object-local transforms (about pivot) and clean-plate compositing.
+    bbox: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
+    pivot: tuple[float, float] = (0.5, 0.5)
+    positive_points: list[tuple[float, float]] = Field(default_factory=list)
+    negative_points: list[tuple[float, float]] = Field(default_factory=list)
+    clean_plate_path: str = ""
+    mask_qc: dict[str, Any] = Field(default_factory=dict)
 
 
 class SemanticLayerContract(OpenModel):
