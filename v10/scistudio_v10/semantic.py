@@ -139,6 +139,7 @@ class SemanticMaskExtractor:
             if obj is not None:  # attach grounded geometry for downstream stages
                 layer.bbox = obj.bbox
                 layer.pivot = obj.pivot
+                layer.depth = obj.depth
                 layer.positive_points = obj.positive_points
                 layer.negative_points = obj.negative_points
             output = self.root / architecture.scene_id / f"{layer.layer_id}_mask.png"
@@ -147,7 +148,14 @@ class SemanticMaskExtractor:
                 layer.mask_path = str(output)
                 written_masks.append(str(output))
                 continue
-            result, qc = self._make_mask(contract.beauty_frame_path, target.region, output, obj, written_masks, force)
+            result, qc = self._make_mask(
+                contract.beauty_frame_path,
+                target.region,
+                output,
+                obj,
+                written_masks,
+                force,
+            )
             if result is None:
                 raise RuntimeError(f"Could not create semantic mask for {architecture.scene_id}/{layer.layer_id}")
             self._normalize_mask(result, output)
@@ -176,14 +184,25 @@ class SemanticMaskExtractor:
         """Create a mask and quality-gate it, retrying once on failure. Returns
         (mask_path_or_None, qc_report)."""
         if self.mask_generator is not None:
-            return self.mask_generator(beauty_path, region, output), {"ok": True, "source": "injected"}
+            return self.mask_generator(beauty_path, region, output), {
+                "ok": True,
+                "source": "injected",
+            }
         if self._segmenter is None:
-            return self._kontext_mask(beauty_path, region, output, force=force), {"ok": True, "source": "kontext"}
+            return self._kontext_mask(beauty_path, region, output, force=force), {
+                "ok": True,
+                "source": "kontext",
+            }
         bbox = obj.bbox if obj is not None else None
         pos = obj.positive_points if obj is not None else None
         neg = obj.negative_points if obj is not None else None
         result = self._segmenter.mask_for(
-            beauty_path, region, output, bbox=bbox, positive_points=pos, negative_points=neg
+            beauty_path,
+            region,
+            output,
+            bbox=bbox,
+            positive_points=pos,
+            negative_points=neg,
         )
         qc = (
             self._segmenter.mask_qc(output, bbox, others)
@@ -207,7 +226,11 @@ class SemanticMaskExtractor:
             qc["accepted_despite_qc"] = True
             return result, qc
         drawn = self._kontext_mask(beauty_path, region, output, force=force)
-        return drawn, {"ok": bool(drawn), "source": "kontext", "reasons": qc.get("reasons", [])}
+        return drawn, {
+            "ok": bool(drawn),
+            "source": "kontext",
+            "reasons": qc.get("reasons", []),
+        }
 
     def _kontext_mask(self, beauty_path: str, region: str, output: Path, *, force: bool) -> Path | None:
         raw = output.with_name(output.stem + "_raw.png")

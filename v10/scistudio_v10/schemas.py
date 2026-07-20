@@ -791,6 +791,7 @@ class SemanticLayer(OpenModel):
     # object-local transforms (about pivot) and clean-plate compositing.
     bbox: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
     pivot: tuple[float, float] = (0.5, 0.5)
+    depth: str = "midground"
     positive_points: list[tuple[float, float]] = Field(default_factory=list)
     negative_points: list[tuple[float, float]] = Field(default_factory=list)
     clean_plate_path: str = ""
@@ -913,6 +914,7 @@ class HybridLayer(OpenModel):
     path: str
     z_index: int = 0
     bbox: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
+    pivot: tuple[float, float] = (0.5, 0.5)  # object-local transform anchor (normalized)
     opacity: float = 1.0
     blend_mode: str = "normal"
     mask_path: str = ""

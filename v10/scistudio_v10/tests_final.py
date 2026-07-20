@@ -1344,6 +1344,28 @@ def _test_mask_quality_gate(c: Collector, base: Path) -> None:
     )
 
 
+def _test_clean_plate(c: Collector, base: Path) -> None:
+    """The clean background plate must reconstruct behind a removed object, not
+    leave a transparent hole or the object's own colour."""
+    from PIL import Image, ImageDraw
+
+    from .hybrid_package import HybridPackageBuilder
+
+    builder = HybridPackageBuilder({}, base / "hp")
+    beauty = Image.new("RGB", (160, 160), "#3a70a0")  # blue background
+    ImageDraw.Draw(beauty).ellipse([50, 50, 110, 110], fill="#c02020")  # red object
+    hole = Image.new("L", (160, 160), 0)
+    ImageDraw.Draw(hole).ellipse([50, 50, 110, 110], fill=255)
+    plate = builder._clean_plate(beauty, hole)
+    c.check("clean plate keeps size and is opaque RGB", plate.size == beauty.size and plate.mode == "RGB")
+    cx = plate.getpixel((80, 80))
+    c.check(
+        "object removed from clean plate (background bled in, not the red object)",
+        not (cx[0] > 150 and cx[1] < 90 and cx[2] < 90),
+        str(cx),
+    )
+
+
 def _test_flat_explainer_style(c: Collector) -> None:
     """Art direction must steer flat vector explainer, not painterly ink."""
     from .schemas import HardCodedStyleCanon
@@ -1826,6 +1848,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_object_segmenter(c, base / "segmenter")
     _test_object_grounding(c, base / "grounding")
     _test_mask_quality_gate(c, base / "mask_qc")
+    _test_clean_plate(c, base / "clean_plate")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")

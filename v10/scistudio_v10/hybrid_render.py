@@ -165,16 +165,22 @@ class PILHybridRenderer:
             return moved
         if event.representation == "rotate":
             angle = float(event.parameters.get("degrees", 5)) * progress
-            return image.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False)
+            w, h = image.size
+            pivot = getattr(layer, "pivot", (0.5, 0.5))
+            center = (pivot[0] * w, pivot[1] * h)  # rotate about the object pivot
+            return image.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False, center=center)
         if event.representation == "scale":
             amount = 1 + (float(event.parameters.get("to", 1.03)) - 1) * progress
             w, h = image.size
+            pivot = getattr(layer, "pivot", (0.5, 0.5))
             scaled = image.resize(
                 (max(1, int(w * amount)), max(1, int(h * amount))),
                 Image.Resampling.LANCZOS,
             )
             canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-            canvas.alpha_composite(scaled, ((w - scaled.width) // 2, (h - scaled.height) // 2))
+            # Scale about the object pivot: keep the pivot pixel fixed on canvas.
+            px, py = pivot[0] * w, pivot[1] * h
+            canvas.alpha_composite(scaled, (int(px - pivot[0] * scaled.width), int(py - pivot[1] * scaled.height)))
             return canvas
         if event.representation == "texture_loop":
             speed = float(event.parameters.get("speed_px_per_second", 50))
