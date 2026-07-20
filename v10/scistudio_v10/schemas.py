@@ -764,12 +764,66 @@ class MotionEvent(OpenModel):
         return self
 
 
+class CameraDirective(OpenModel):
+    """A camera move authored by the director. ``hold`` (default) = no move —
+    the renderer must NOT invent camera motion. Camera is supporting motion; it
+    only moves when it serves the causal read of the shot."""
+
+    move: Literal["hold", "push_in", "pull_out", "pan_left", "pan_right", "pan_up", "pan_down"] = "hold"
+    magnitude: float = 0.0  # 0 = no move; e.g. 0.06 = 6% zoom/pan
+    start_frame: int = 0
+    end_frame: int = 0
+    easing: str = "ease_in_out"
+    reason: str = ""
+
+
+class EffectDirective(OpenModel):
+    """A particle / physical effect authored by the director for a specific
+    region, time window, intensity and direction. Nothing is inferred from
+    narration keywords — the director decides when an effect clarifies the
+    causal action."""
+
+    effect: Literal["none", "rain", "water", "snow", "wind", "spark", "bubble", "dust"] = "none"
+    region: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)  # normalized x0,y0,x1,y1
+    intensity: float = 0.0  # 0 = off
+    direction_deg: float = 90.0  # travel direction; 90 = downward
+    start_frame: int = 0
+    end_frame: int = 0
+    reason: str = ""
+
+
+class CaptionDirective(OpenModel):
+    """An on-screen text / HUD element authored by the director. Off by default:
+    shorts are narrated by audio, so captions appear only when the director
+    explicitly asks (a key label or measured value that the audio cannot carry)."""
+
+    text: str = ""
+    kind: Literal["none", "headline", "label", "hud_status", "hud_metric"] = "none"
+    position: Literal["lower_third", "top_left", "top_right", "center"] = "lower_third"
+    start_frame: int = 0
+    end_frame: int = 0
+    reason: str = ""
+
+
 class AnimationPlan(OpenModel):
+    """Authored animation DSL for one shot. Every visual decision — object
+    motion, camera, effects, captions — is authored here (by the vision
+    director) with a narrative reason. The renderer is a pure executor: what is
+    not authored does not happen (default: hold, no camera, no effects, no
+    captions)."""
+
     scene_id: str
     fps: int = 30
     duration_frames: int
     camera_locked: bool = True
+    # Primary: object state changes that carry the causal action.
     events: list[MotionEvent] = Field(default_factory=list)
+    # Supporting, all opt-in via the director — never auto-defaulted.
+    camera: CameraDirective = Field(default_factory=CameraDirective)
+    effects: list[EffectDirective] = Field(default_factory=list)
+    captions: list[CaptionDirective] = Field(default_factory=list)
+    # What changes, why, and the consequence — the causal-clarity contract.
+    causal_summary: str = ""
     audio_sync: dict[str, Any] = Field(default_factory=dict)
     hold_regions: list[str] = Field(default_factory=list)
     maximum_simultaneous_groups: int = 3

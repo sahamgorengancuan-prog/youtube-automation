@@ -21,9 +21,10 @@ class PILHybridRenderer:
     def __init__(self, config: dict[str, Any], root: str | Path):
         self.config = config
         self.root = ensure_dir(root)
-        from .motion_graphics import CinematicFinisher
+        from .motion_graphics import ShotExecutor
 
-        self.finisher = CinematicFinisher(config)
+        # Pure executor of the authored animation DSL (camera/effects/captions).
+        self.executor = ShotExecutor(config)
 
     def render(self, scenes: list[HybridScenePackage], output: str | Path) -> Path:
         output = Path(output)
@@ -33,25 +34,24 @@ class PILHybridRenderer:
         for old in frame_dir.glob("*.png"):
             old.unlink()
         global_index = 0
-        total_scenes = len(scenes)
-        for scene_index, scene in enumerate(scenes, 1):
+        for scene in scenes:
             assets = self._load_layers(scene)
-            finish_ctx = {
-                "scene_id": scene.scene_id,
-                "headline": scene.headline,
-                "narration": scene.narration,
-                "index": scene_index,
-                "total_scenes": total_scenes,
-                # variable omitted -> HUD derives a measured-variable label from fx
-            }
             for frame in range(scene.duration_frames):
                 canvas = Image.new("RGBA", scene.canvas, scene.background)
+                # Primary motion: authored object state changes (MotionEvents).
                 for layer in sorted(scene.layers, key=lambda x: x.z_index):
-                    image = self._image_for_layer(layer, assets, scene.animation.events, frame, scene.duration_frames)
+                    image = self._image_for_layer(
+                        layer,
+                        assets,
+                        scene.animation.events,
+                        frame,
+                        scene.duration_frames,
+                    )
                     if image is None:
                         continue
                     canvas.alpha_composite(image.resize(scene.canvas))
-                finished = self.finisher.finish(canvas.convert("RGB"), finish_ctx, frame, scene.duration_frames)
+                # Supporting motion: only what the director authored in the DSL.
+                finished = self.executor.execute(canvas.convert("RGB"), scene.animation, frame, scene.duration_frames)
                 finished.save(frame_dir / f"frame_{global_index:06d}.png")
                 global_index += 1
         if not shutil.which("ffmpeg"):
@@ -107,7 +107,10 @@ class PILHybridRenderer:
                     import cairosvg
 
                     cairosvg.svg2png(
-                        url=layer.path, write_to=str(png), output_width=scene.canvas[0], output_height=scene.canvas[1]
+                        url=layer.path,
+                        write_to=str(png),
+                        output_width=scene.canvas[0],
+                        output_height=scene.canvas[1],
                     )
                     images.append(Image.open(png).convert("RGBA"))
                 except Exception:
@@ -138,7 +141,13 @@ class PILHybridRenderer:
         image = images[0].copy()
         if event is None or frame < event.start_frame:
             return image
-        progress = min(1.0, max(0.0, (frame - event.start_frame) / max(1, event.end_frame - event.start_frame)))
+        progress = min(
+            1.0,
+            max(
+                0.0,
+                (frame - event.start_frame) / max(1, event.end_frame - event.start_frame),
+            ),
+        )
         if event.representation == "replacement_pose" and len(images) > 1:
             index = min(len(images) - 1, int(progress * len(images)))
             return images[index].copy()
@@ -160,7 +169,10 @@ class PILHybridRenderer:
         if event.representation == "scale":
             amount = 1 + (float(event.parameters.get("to", 1.03)) - 1) * progress
             w, h = image.size
-            scaled = image.resize((max(1, int(w * amount)), max(1, int(h * amount))), Image.Resampling.LANCZOS)
+            scaled = image.resize(
+                (max(1, int(w * amount)), max(1, int(h * amount))),
+                Image.Resampling.LANCZOS,
+            )
             canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
             canvas.alpha_composite(scaled, ((w - scaled.width) // 2, (h - scaled.height) // 2))
             return canvas
@@ -205,7 +217,13 @@ class RemotionHybridExporter:
                     copied.append(name)
                 if not copied:
                     continue
-                layers.append({**layer.model_dump(mode="json"), "path": copied[0], "pose_paths": copied[1:]})
+                layers.append(
+                    {
+                        **layer.model_dump(mode="json"),
+                        "path": copied[0],
+                        "pose_paths": copied[1:],
+                    }
+                )
             data_scenes.append(
                 {
                     **scene.model_dump(mode="json", exclude={"layers"}),
@@ -248,7 +266,11 @@ class RemotionHybridExporter:
                     "react": "19.0.0",
                     "react-dom": "19.0.0",
                 },
-                "devDependencies": {"typescript": "5.6.3", "@types/react": "19.0.0", "@types/react-dom": "19.0.0"},
+                "devDependencies": {
+                    "typescript": "5.6.3",
+                    "@types/react": "19.0.0",
+                    "@types/react-dom": "19.0.0",
+                },
             },
         )
         save_json(

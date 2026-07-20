@@ -1190,55 +1190,112 @@ def _test_director_review_salvage(c: Collector, base: Path) -> None:
     c.check("no-reviewer sentinel is not silently approved", order.status == "requires_human_or_vision_director")
 
 
-def _test_cinematic_finisher(c: Collector, base: Path) -> None:
-    """The finishing pass must add real per-frame motion (camera + particles),
-    infer the right effect from scene text, and never raise."""
+def _test_shot_executor(c: Collector, base: Path) -> None:
+    """The executor renders ONLY authored directives — nothing auto-activates.
+
+    No camera/effect/caption in the plan => the frame is returned untouched
+    (a true hold). Authored directives => exactly that motion, and only within
+    their time window."""
     from PIL import Image, ImageDraw
 
-    from .motion_graphics import CinematicFinisher
+    from .motion_graphics import ShotExecutor
 
     canvas = Image.new("RGB", (360, 640), "#7fa8c9")
-    ImageDraw.Draw(canvas).ellipse([120, 220, 240, 340], fill="#20406a")
-    fin = CinematicFinisher({})
-    ctx = {
-        "scene_id": "S01",
-        "headline": "A World of Unending Rain",
-        "narration": "What happens if it rains nonstop?",
-        "index": 1,
-        "total_scenes": 8,
-    }
-    c.check("fx inferred from rain text", fin.infer_fx(ctx["headline"]) == "rain")
-    c.check("fx inferred from wind text", fin.infer_fx("a strong gale of wind") == "wind")
-    a = fin.finish(canvas, ctx, 5, 120)
-    b = fin.finish(canvas, ctx, 55, 120)
-    c.check("finished frame keeps canvas size", a.size == canvas.size)
+    _d = ImageDraw.Draw(canvas)
+    _d.ellipse([120, 220, 240, 340], fill="#20406a")
+    # Texture the frame so a small camera zoom yields a measurable pixel diff.
+    for gx in range(0, 360, 24):
+        _d.line([(gx, 0), (gx, 640)], fill="#5a86a8", width=1)
+    for gy in range(0, 640, 24):
+        _d.line([(0, gy), (360, gy)], fill="#5a86a8", width=1)
 
     def diff(x, y):
         xd, yd = list(x.convert("L").getdata()), list(y.convert("L").getdata())
         return sum(abs(p - q) for p, q in zip(xd, yd)) / (len(xd) * 255.0)
 
-    c.check("finisher produces real inter-frame motion", diff(a, b) > 0.01, str(diff(a, b)))
-    c.check("finisher differs from static input (captions/hud drawn)", diff(a, canvas) > 0.01)
-    # Disabled finisher is a pass-through.
-    off = CinematicFinisher({"cinematic_finish": False})
-    c.check("disabled finisher is a no-op", off.finish(canvas, ctx, 5, 120) is canvas)
-    # Never raises on a malformed context.
-    fin.finish(canvas, {}, 0, 0)
-    c.check("finisher tolerates empty context", True)
+    ex = ShotExecutor({})
+
+    # 1) Empty plan (default hold) -> NO motion at all. This is the core fix.
+    hold_plan = {"scene_id": "S01", "camera": {"move": "hold", "magnitude": 0.0}, "effects": [], "captions": []}
+    a = ex.execute(canvas, hold_plan, 5, 120)
+    b = ex.execute(canvas, hold_plan, 60, 120)
+    c.check("no directives -> pixel-identical hold (no invented motion)", diff(a, b) == 0.0)
+    c.check("hold frame equals input", diff(a, canvas) == 0.0)
+
+    # 2) Authored camera push -> real motion appears, and only it.
+    cam_plan = {"scene_id": "S01", "camera": {"move": "push_in", "magnitude": 0.08, "start_frame": 0, "end_frame": 120}}
+    c.check(
+        "authored camera move produces motion",
+        diff(ex.execute(canvas, cam_plan, 5, 120), ex.execute(canvas, cam_plan, 90, 120)) > 0.01,
+    )
+
+    # 3) Authored effect only inside its window.
+    fx_plan = {"scene_id": "S01", "effects": [{"effect": "rain", "intensity": 0.8, "start_frame": 10, "end_frame": 40}]}
+    before = ex.execute(canvas, fx_plan, 2, 120)  # before window
+    during = ex.execute(canvas, fx_plan, 25, 120)  # in window
+    c.check("effect is off before its authored window", diff(before, canvas) == 0.0)
+    c.check("effect renders inside its authored window", diff(during, canvas) > 0.0)
+
+    # 4) Authored caption draws text; absent caption draws nothing.
+    cap_plan = {
+        "scene_id": "S01",
+        "captions": [{"kind": "headline", "text": "Sea level rises", "start_frame": 0, "end_frame": 120}],
+    }
+    c.check("authored caption is drawn", diff(ex.execute(canvas, cap_plan, 60, 120), canvas) > 0.005)
+
+    # 5) Disabled executor is a pass-through; malformed plan never raises.
+    off = ShotExecutor({"execute_shot_directives": False})
+    c.check("disabled executor is a no-op", diff(off.execute(canvas, cam_plan, 5, 120), canvas) == 0.0)
+    ex.execute(canvas, {}, 0, 0)
+    c.check("executor tolerates empty plan", True)
+
+
+def _test_motion_eval(c: Collector) -> None:
+    """Separated motion axes + the causal-clarity gate: supporting motion alone
+    must not pass, and a declared hold must."""
+    from .motion_eval import causal_clarity_ok, evaluate_plan
+
+    # Real object state change + summary -> clear.
+    good = {
+        "causal_summary": "The river overtops its bank and floods the town.",
+        "events": [{"event_id": "E1", "representation": "mask_reveal", "secondary": False}],
+        "camera": {"move": "hold", "magnitude": 0.0},
+        "effects": [],
+        "captions": [],
+    }
+    rep = evaluate_plan(good)
+    c.check("object state change detected", rep["state_change"] and rep["object_motion"])
+    c.check("causal clarity passes with object state change", causal_clarity_ok(good))
+
+    # Only camera + particles, no object motion -> must FAIL the gate.
+    supporting_only = {
+        "causal_summary": "Rain intensifies.",
+        "events": [],
+        "camera": {"move": "push_in", "magnitude": 0.08},
+        "effects": [{"effect": "rain", "intensity": 0.9}],
+        "captions": [],
+    }
+    rep2 = evaluate_plan(supporting_only)
+    c.check("camera+particle flagged as supporting-only", rep2["supporting_only_warning"])
+    c.check("supporting-only motion fails causal gate", not causal_clarity_ok(supporting_only))
+
+    # Declared hold (summary, no motion) -> allowed.
+    hold = {"causal_summary": "The system rests before the change.", "events": [], "camera": {"move": "hold"}}
+    c.check("declared hold passes the gate", causal_clarity_ok(hold))
 
 
 def _test_reference_motion_guidance(c: Collector) -> None:
-    """The reference video's measured motion dynamics steer the animation
-    director's prompt; no profile means no guidance (behaviour unchanged)."""
+    """The reference profile is only a restrained PACING hint — it must not
+    force extra motion, and it is empty when no profile is given."""
     from .animation_director import AnimationDirector
 
     guide = AnimationDirector._reference_motion_guidance
     c.check("no motion profile -> no guidance", guide(None) == "" and guide({}) == "")
     energetic = guide({"tempo": "energetic", "energy": 0.8, "cut_rate": 0.4})
-    c.check("energetic reference asks for fluid dynamic motion", "HIGH energy" in energetic)
-    c.check("guidance forbids copying reference content", "NEVER its content" in energetic)
+    c.check("energetic reference hints brisk pacing", "brisk" in energetic)
+    c.check("pacing hint explicitly does not justify extra motion", "does NOT justify extra motion" in energetic)
     calm = guide({"tempo": "calm", "energy": 0.1, "cut_rate": 0.0})
-    c.check("calm reference asks for restrained motion", "restrained" in calm)
+    c.check("calm reference hints slow pacing and holds", "generous holds" in calm)
 
 
 # ---------------------------------------------------------------------------
@@ -1640,7 +1697,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_vision_two_tier_escalation(c, base / "vision_two_tier")
     _test_director_review_salvage(c, base / "director_salvage")
     _test_reference_motion_guidance(c)
-    _test_cinematic_finisher(c, base / "cinematic")
+    _test_shot_executor(c, base / "shot_executor")
+    _test_motion_eval(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")

@@ -1,32 +1,33 @@
 {
-  "generated_at": "2026-07-20T04:00:00+00:00",
+  "generated_at": "2026-07-20T05:00:00+00:00",
   "package_version": "10.2.0",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 308,
+  "total_checks": 314,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (157)",
+    "finalization_tests": "PASS (170)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
     "vision_two_tier_escalation_tests": "PASS",
     "director_review_salvage_tests": "PASS",
     "reference_motion_guidance_tests": "PASS",
-    "cinematic_finisher_tests": "PASS",
-    "finalization_tests_detail": "PASS (164)",
     "linear_notebook_double_execution": "PASS (fresh + resume, 52 cells, 0 errors)",
-    "offline_render_motion": "PASS (cinematic finisher: continuous per-frame motion + captions + HUD + particles rendered end-to-end)",
+    "offline_render_motion": "PASS (authored DSL only: default hold, object state change carries the shot, no gratuitous camera/particle/caption)",
     "live_openai_smoke": "NOT RUN",
     "live_bfl_smoke": "NOT RUN",
-    "docker_build": "NOT RUN (requires Docker: docker build -t scistudio-v10 .)"
+    "docker_build": "NOT RUN (requires Docker: docker build -t scistudio-v10 .)",
+    "shot_executor_tests": "PASS (DSL-driven: nothing auto-activates; directives executed exactly)",
+    "motion_eval_causal_gate_tests": "PASS (supporting-only motion fails; object state change or declared hold passes)"
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
-    "vision_review": "Two-tier via ONE OpenRouter key: Qwen VL (qwen/qwen-2.5-vl-72b-instruct) primary ~80%, escalate difficult/low-confidence cases to Gemini 2.5 Flash (google/gemini-2.5-flash) ~20% — both through OPENROUTER_API_KEY. OpenAI permitted as vision fallback. Imperfect critiques are salvaged into valid change orders instead of hard-failing.",
+    "vision_review": "Two-tier via ONE OpenRouter key: Qwen VL (qwen/qwen-2.5-vl-72b-instruct) primary ~80%, escalate difficult/low-confidence cases to Gemini 2.5 Flash (google/gemini-2.5-flash) ~20% \u2014 both through OPENROUTER_API_KEY. OpenAI permitted as vision fallback. Imperfect critiques are salvaged into valid change orders instead of hard-failing.",
     "image_generation": "BFL FLUX Kontext via BFL_API_KEY (exclusive in production)",
     "reference_motion": "Reference video motion dynamics (energy/tempo/cut-rate) measured via frame differencing and fed to the animation director so motion matches the reference's rhythm; guarded (no-op if measurement fails).",
-    "anthropic_runtime_dependency": false
+    "anthropic_runtime_dependency": false,
+    "animation": "Authored animation DSL per shot (Director-authored: object state change is primary; camera/particles/captions are opt-in supporting elements, off by default). Renderer is a pure executor. Primary quality gate is causal clarity, not motion energy."
   }
 }

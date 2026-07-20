@@ -16,11 +16,16 @@ from .utils import ensure_dir, save_json
 
 
 class AnimationDirector:
-    SYSTEM = """You are the Animation Director of a scientific editorial studio.
-Return JSON only. Animate the approved illustration without making it feel like a presentation.
-Default is hold. Every event must express the scene's stated causal change and must target an available semantic layer.
-Prefer replacement drawings, local masks, material loops and restrained transforms. Never add automatic fade,
-zoom, entrance animation, random parallax, camera shake or decorative motion."""
+    SYSTEM = """You are the Animation Director of a scientific explainer studio. Return JSON only.
+Your ONE job is CAUSAL CLARITY: the viewer must clearly see WHAT changes, WHY it changes, and its CONSEQUENCE.
+You author every visual decision as an explicit directive; the renderer only executes what you author — it invents nothing.
+PRIMARY motion is object state change: the specific object that carries the causal action moves from its first-frame
+state to its last-frame state (via replacement_pose, mask_reveal, local_deformation or a restrained transform on that
+object's layer). Camera, particle effects and captions are SECONDARY, supporting elements — include them ONLY when they
+sharpen the causal read, each with a narrative reason. Default everything to OFF/HOLD: no camera move, no particles and
+no captions unless you explicitly author them. Never add decorative motion, entrance animation, random parallax, camera
+shake, or an always-moving camera. Captions are usually unnecessary because English audio narrates the shot — author a
+caption only for a label or measured value the narration cannot carry."""
 
     def __init__(self, llm: LLMRouter, config: dict[str, Any], root: str | Path):
         self.llm = llm
@@ -49,13 +54,20 @@ Available layers: {json.dumps([layer_item.model_dump(mode="json") for layer_item
 Duration: {duration_frames} frames at {fps} fps.
 Audio timing: {json.dumps(audio_timing or {}, ensure_ascii=False)}
 {self._reference_motion_guidance(reference_motion)}
-Return an AnimationPlan. Rules:
-- camera_locked=true unless an indispensable camera action is explicitly justified; no camera events otherwise.
-- Only target these exact layer IDs: {available}.
-- Every MotionEvent needs event_id, reason_id, target_layer, representation, start_frame, end_frame, easing and parameters.
-- Maximum one primary event and two secondary events at the same time.
-- If no local movement is needed, return events=[] and preserve a deliberate hold.
-- Use replacement_pose only when pose_variant_paths exist; use masks for local changes; keep beauty-base locked.
+Return an AnimationPlan (the authored animation DSL). Fields:
+- causal_summary: one sentence — WHAT changes, WHY, and the CONSEQUENCE. This is the shot's contract; author motion that makes it visible.
+- events: PRIMARY object state changes. Each MotionEvent needs event_id, reason_id (the narrative reason), target_layer
+  (one of {available}), representation, start_frame, end_frame, easing, parameters. Prefer replacement_pose (only when
+  that layer has pose_variant_paths), mask_reveal, local_deformation, or a restrained transform on the object that carries
+  the change. Keep the beauty-base and locked layers still. Max one primary + two secondary simultaneous events.
+- camera: a CameraDirective. Use move="hold" (default) unless a move genuinely aids the causal read; then set move, a small
+  magnitude (0.03-0.08), start_frame, end_frame, easing and reason. No always-on camera.
+- effects: list of EffectDirective — ONLY if a physical effect (e.g. rain, wind, spark) is part of the causal action.
+  Each needs effect, region (normalized x0,y0,x1,y1 of where it happens), intensity (0..1), direction_deg, start/end_frame, reason.
+  Leave [] when no effect is needed. Do not add ambient weather that is not part of the science.
+- captions: list of CaptionDirective — usually []. Author one only for a label/value the audio cannot convey (kind, text,
+  position, start/end_frame, reason).
+If the shot needs no motion, return events=[], camera hold, effects=[], captions=[] — a deliberate, honest hold.
 """,
             namespace=f"v10_animation_{scene.scene_id}",
             fallback=fallback.model_dump(mode="json"),
@@ -71,40 +83,47 @@ Return an AnimationPlan. Rules:
         plan.camera_locked = True
         plan.events = self._sanitize(plan.events, contract, duration_frames)
         plan.hold_regions = sorted(
-            set([*plan.hold_regions, *[layer_item.layer_id for layer_item in contract.layers if layer_item.locked]])
+            set(
+                [
+                    *plan.hold_regions,
+                    *[layer_item.layer_id for layer_item in contract.layers if layer_item.locked],
+                ]
+            )
         )
         save_json(self.root / f"{scene.scene_id}.json", plan)
+        # Non-blocking causal-clarity evaluation (separated motion axes). Saved
+        # as an observability artifact so shots that move only camera/particles/
+        # text without an object state change are visible for review.
+        try:
+            from .motion_eval import evaluate_plan
+
+            report = evaluate_plan(plan)
+            save_json(self.root / f"{scene.scene_id}_motion_eval.json", report)
+            if report.get("supporting_only_warning"):
+                print(
+                    f"⚠ [{scene.scene_id}] supporting motion (camera/particles/text) without an object "
+                    "state change — causal clarity is weak for this shot."
+                )
+        except Exception:
+            pass
         return plan
 
     @staticmethod
     def _reference_motion_guidance(reference_motion: dict[str, Any] | None) -> str:
-        """Turn the reference video's measured motion dynamics into director
-        guidance so the animation matches its energy and rhythm (never its
-        content). Returns an empty string when no profile is available."""
+        """A restrained PACING hint from the reference video's measured dynamics.
+
+        It informs how brisk the editing/easing should feel — it must NOT force
+        extra or decorative motion. Causal clarity always wins over matching a
+        tempo. Returns an empty string when no profile is available."""
         if not isinstance(reference_motion, dict) or not reference_motion:
             return ""
         tempo = str(reference_motion.get("tempo", "moderate"))
-        energy = reference_motion.get("energy", "")
-        cut_rate = reference_motion.get("cut_rate", "")
         pace = {
-            "energetic": (
-                "The reference moves with HIGH energy: give the scene fluid, continuous motion — "
-                "2-3 well-timed events that overlap and chain so the frame never feels frozen, "
-                "larger (but still causal) transforms, and smooth ease-in-out. Keep it dynamic, not jittery."
-            ),
-            "moderate": (
-                "The reference has MODERATE energy: one clear primary motion plus a supporting "
-                "secondary event, with gentle continuous easing so the scene feels alive."
-            ),
-            "calm": (
-                "The reference is CALM: keep motion restrained and deliberate — a single subtle "
-                "primary event and long holds."
-            ),
+            "energetic": "Reference pacing is brisk: keep easing snappy, but only animate what the causal action needs.",
+            "moderate": "Reference pacing is moderate: steady, clear easing.",
+            "calm": "Reference pacing is calm: slow, deliberate easing and generous holds.",
         }.get(tempo, "")
-        return (
-            "\nReference motion profile (MATCH its energy and rhythm, NEVER its content): "
-            f"tempo={tempo}, energy={energy}, cut_rate={cut_rate}.\n{pace}\n"
-        )
+        return f"\nPacing hint (does NOT justify extra motion): tempo={tempo}. {pace}\n"
 
     @staticmethod
     def _sanitize(events: list[MotionEvent], contract: SemanticLayerContract, duration: int) -> list[MotionEvent]:
@@ -172,12 +191,14 @@ Return an AnimationPlan. Rules:
                 )
             )
         holds = [layer.layer_id for layer in contract.layers if layer.locked]
+        causal = getattr(scene, "desired_change", "") or getattr(scene, "narration", "") or scene.scene_id
         return AnimationPlan(
             scene_id=scene.scene_id,
             fps=fps,
             duration_frames=duration_frames,
             camera_locked=True,
             events=events,
+            causal_summary=str(causal)[:300],
             audio_sync=audio_timing,
             hold_regions=holds,
         )
