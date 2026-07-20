@@ -1344,6 +1344,42 @@ def _test_mask_quality_gate(c: Collector, base: Path) -> None:
     )
 
 
+def _test_post_render_qc(c: Collector, base: Path) -> None:
+    """Rendered causal clarity is verified from REAL frame evidence, not from the
+    plan JSON: an action shot must show the object region change; a declared hold
+    must not."""
+    from PIL import Image, ImageDraw
+
+    from .post_render_qc import verify
+
+    mask = Image.new("L", (120, 120), 0)
+    ImageDraw.Draw(mask).rectangle([30, 30, 90, 90], fill=255)
+    initial = Image.new("RGB", (120, 120), "#3060a0")
+    final_moved = initial.copy()
+    ImageDraw.Draw(final_moved).rectangle([30, 30, 90, 90], fill="#d04030")  # object region changed
+    final_static = initial.copy()
+
+    action = {
+        "causal_summary": "river rises",
+        "events": [{"event_id": "E", "representation": "mask_reveal", "secondary": False}],
+    }
+    moved = verify(initial, final_moved, mask, action)
+    c.check(
+        "rendered object change verifies an action shot", moved["render_verified"] and moved["object_moved_in_render"]
+    )
+    static = verify(initial, final_static, mask, action)
+    c.check(
+        "static render fails action-shot QC (JSON said motion, frames show none)", static["render_verified"] is False
+    )
+
+    hold = {"causal_summary": "the system rests", "events": []}
+    c.check("declared hold verifies when nothing moved", verify(initial, final_static, mask, hold)["render_verified"])
+    c.check(
+        "declared hold fails if the object actually moved",
+        verify(initial, final_moved, mask, hold)["render_verified"] is False,
+    )
+
+
 def _test_renderer_parity(c: Collector, base: Path) -> None:
     """The Remotion project must interpret the SAME DSL the PIL renderer does:
     every representation, ALL events per layer (not one via .find), camera,
@@ -1914,6 +1950,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_mask_quality_gate(c, base / "mask_qc")
     _test_clean_plate(c, base / "clean_plate")
     _test_renderer_parity(c, base / "parity")
+    _test_post_render_qc(c, base / "render_qc")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")

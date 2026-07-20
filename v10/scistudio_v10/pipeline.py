@@ -196,7 +196,10 @@ class ScientificMotionStudioV10:
         style_ref = StyleReferenceExtractor(run_dir / "01_style_reference", self.config.get("style_reference", {}))
         reference_profile = runtime.execute(
             "01_style_reference",
-            {"reference_video": reference_video, "config": self.config.get("style_reference", {})},
+            {
+                "reference_video": reference_video,
+                "config": self.config.get("style_reference", {}),
+            },
             lambda: style_ref.extract(reference_video, force=force),
             force=force,
         )
@@ -226,7 +229,10 @@ class ScientificMotionStudioV10:
         storyboard = Storyboard.model_validate(
             runtime.execute(
                 "04_storyboard",
-                {"script": script.model_dump(mode="json"), "research_hash": research.research_hash},
+                {
+                    "script": script.model_dump(mode="json"),
+                    "research_hash": research.research_hash,
+                },
                 lambda: narrative.storyboard(script, research, force=force),
                 force=force,
             )
@@ -260,17 +266,25 @@ class ScientificMotionStudioV10:
         continuity = ContinuityCanon.model_validate(
             runtime.execute(
                 "07_continuity_canon",
-                {"bible": bible.model_dump(mode="json"), "storyboard": storyboard.model_dump(mode="json")},
+                {
+                    "bible": bible.model_dump(mode="json"),
+                    "storyboard": storyboard.model_dump(mode="json"),
+                },
                 lambda: executive.continuity_canon(bible, storyboard, reference_board, force=force),
                 force=force,
             )
         )
         architect = SceneIllustrationArchitect(
-            self.llm, self.config.get("scene_architect", {}), run_dir / "08_scene_architecture"
+            self.llm,
+            self.config.get("scene_architect", {}),
+            run_dir / "08_scene_architecture",
         )
         architectures_raw = runtime.execute(
             "08_scene_architectures",
-            {"storyboard": storyboard.model_dump(mode="json"), "bible": bible.model_dump(mode="json")},
+            {
+                "storyboard": storyboard.model_dump(mode="json"),
+                "bible": bible.model_dump(mode="json"),
+            },
             lambda: architect.plan_all(storyboard, bible, continuity, force=force),
             force=force,
         )
@@ -284,7 +298,10 @@ class ScientificMotionStudioV10:
             state = ShotState.model_validate(
                 runtime.execute(
                     f"09_shot_state_{scene.scene_id}",
-                    {"scene": scene.model_dump(mode="json"), "architecture": architecture.model_dump(mode="json")},
+                    {
+                        "scene": scene.model_dump(mode="json"),
+                        "architecture": architecture.model_dump(mode="json"),
+                    },
                     lambda s=scene, a=architecture: shot_planner.plan(s, a, force=force),
                     force=force,
                 )
@@ -333,7 +350,13 @@ class ScientificMotionStudioV10:
                 query = self._asset_query(scene.scene_id, index, architecture, style_hash)
                 selection = selector.select(query)
                 selections.append(selection)
-                pack = refs.plan(architecture, bible, continuity, previous_approved_scene="", force=force)
+                pack = refs.plan(
+                    architecture,
+                    bible,
+                    continuity,
+                    previous_approved_scene="",
+                    force=force,
+                )
                 selected_paths = [x.asset.path for x in selection.selected]
                 pack.subject_anchor_paths = selected_paths
                 pack.environment_anchor_paths = []
@@ -364,7 +387,10 @@ class ScientificMotionStudioV10:
                         "candidate_seeds": [
                             (brief.seed or 0) + i * 9973
                             for i in range(
-                                max(2, int(self.config.get("candidate_tournament", {}).get("candidate_count", 4)))
+                                max(
+                                    2,
+                                    int(self.config.get("candidate_tournament", {}).get("candidate_count", 4)),
+                                )
                             )
                         ],
                         "ranking_dimensions": [
@@ -380,7 +406,10 @@ class ScientificMotionStudioV10:
             save_json(run_dir / "10_reference_retrieval" / "selections.json", selections)
             save_json(run_dir / "10_reference_plans" / "reference_packs.json", reference_packs)
             save_json(run_dir / "11_drawing_briefs" / "beauty_briefs.json", beauty_briefs)
-            save_json(run_dir / "12_candidate_tournaments" / "candidate_plans.json", candidate_plans)
+            save_json(
+                run_dir / "12_candidate_tournaments" / "candidate_plans.json",
+                candidate_plans,
+            )
             result = PipelineResult(
                 topic=topic,
                 mode="plan_only",
@@ -460,12 +489,20 @@ class ScientificMotionStudioV10:
             mask_generator=self.mask_generator,
         )
         overlay_builder = ScientificOverlayBuilder(
-            {"width": storyboard.width, "height": storyboard.height, **self.config.get("overlay", {})},
+            {
+                "width": storyboard.width,
+                "height": storyboard.height,
+                **self.config.get("overlay", {}),
+            },
             run_dir / "15_overlays",
         )
         animation_director = AnimationDirector(self.llm, self.config.get("animation", {}), run_dir / "16_animation")
         package_builder = HybridPackageBuilder(
-            {"width": storyboard.width, "height": storyboard.height, **self.config.get("hybrid", {})},
+            {
+                "width": storyboard.width,
+                "height": storyboard.height,
+                **self.config.get("hybrid", {}),
+            },
             run_dir / "18_hybrid_packages",
         )
         sketch_builder = ControlSketchBuilder(run_dir / "17_temporal" / "control_sketches")
@@ -479,7 +516,9 @@ class ScientificMotionStudioV10:
         ]
         temporal_router = TemporalBackendRouter(temporal_backend_list, run_dir / "17_temporal" / "results")
         tournament = CandidateTournament(
-            self.llm, self.config.get("candidate_tournament", {}), run_dir / "12_candidate_tournaments"
+            self.llm,
+            self.config.get("candidate_tournament", {}),
+            run_dir / "12_candidate_tournaments",
         )
 
         beauty_frames = []
@@ -492,8 +531,18 @@ class ScientificMotionStudioV10:
             query = self._asset_query(scene.scene_id, index, architecture, style_hash)
             selection = selector.select(query)
             selections.append(selection)
-            pack = refs.plan(architecture, bible, continuity, previous_approved_scene=previous_approved, force=force)
-            pack.style_anchor_ids = ["reference-video-board", "master-style-anchor", *pack.style_anchor_ids]
+            pack = refs.plan(
+                architecture,
+                bible,
+                continuity,
+                previous_approved_scene=previous_approved,
+                force=force,
+            )
+            pack.style_anchor_ids = [
+                "reference-video-board",
+                "master-style-anchor",
+                *pack.style_anchor_ids,
+            ]
             selected_paths = [x.asset.path for x in selection.selected]
             pack.subject_anchor_paths = selected_paths
             pack.board_path = selection.board_path or refs.build_board(pack, continuity)
@@ -518,9 +567,20 @@ class ScientificMotionStudioV10:
             reference_packs.append(pack)
             beauty_briefs.append(brief)
 
-            tour = tournament.run(brief, architecture, state, lambda b: flux.generate(b, force=force), force=force)
+            tour = tournament.run(
+                brief,
+                architecture,
+                state,
+                lambda b: flux.generate(b, force=force),
+                force=force,
+            )
             beauty = flux.direct_scene(
-                brief, architecture, bible, continuity, initial_path=tour.winner_path, force=force
+                brief,
+                architecture,
+                bible,
+                continuity,
+                initial_path=tour.winner_path,
+                force=force,
             )
             if not beauty.approved:
                 raise RuntimeError(f"Scene {scene.scene_id} was not explicitly approved by the art director")
@@ -598,7 +658,8 @@ class ScientificMotionStudioV10:
                 request = TemporalRequest(
                     scene_id=scene.scene_id,
                     backend_preference=self.config.get("temporal", {}).get(
-                        "backend_preference", ["sketch-controlled-video", "deterministic-compositor"]
+                        "backend_preference",
+                        ["sketch-controlled-video", "deterministic-compositor"],
                     ),
                     beauty_start=beauty.image_path,
                     beauty_end=end_path,
@@ -652,12 +713,17 @@ class ScientificMotionStudioV10:
                 self._render_remotion(run_dir / "19_remotion", output)
             video_path = str(output)
             mode = "rendered"
+            self._post_render_qc(run_dir, hybrid_scenes, semantic_contracts)
 
         publish_manifest = {}
         publish_config = self.config.get("publishing", {})
         if video_path and publish_config.get("enabled", False):
             provider = str(publish_config.get("provider", "local-archive"))
-            metadata = {"title": script.title or topic, "topic": topic, "job_id": job_id}
+            metadata = {
+                "title": script.title or topic,
+                "topic": topic,
+                "job_id": job_id,
+            }
             if provider == "local-archive":
                 publisher = LocalArchivePublisher(publish_config.get("archive_dir", run_dir / "published"))
             elif provider == "upload-post":
@@ -755,7 +821,13 @@ class ScientificMotionStudioV10:
             environment_id=self._environment_id(architecture),
             camera_view=architecture.perspective.view,
             perspective=architecture.perspective.lens_language,
-            desired_types=["style_anchor", "approved_scene", "subject_view", "environment", "material"],
+            desired_types=[
+                "style_anchor",
+                "approved_scene",
+                "subject_view",
+                "environment",
+                "material",
+            ],
             required_roles=["style", "continuity", "approved"],
             style_hash=style_hash,
             chronology_index=index,
@@ -778,6 +850,44 @@ class ScientificMotionStudioV10:
             return "three_quarter"
         return "front"
 
+    def _post_render_qc(self, run_dir: Path, hybrid_scenes: list, semantic_contracts: list) -> None:
+        """Verify rendered causal clarity from real frames. Fully guarded: any
+        failure is skipped so QC never blocks a completed render."""
+        try:
+            frames_dir = run_dir / "19_preview_render" / "frames"
+            frame_files = sorted(frames_dir.glob("frame_*.png"))
+            if not frame_files:  # non-PIL backend (Remotion) — QC runs in Colab
+                return
+            from .post_render_qc import PostRenderQC
+            from .utils import save_json as _save
+
+            contracts = {c.scene_id: c for c in semantic_contracts}
+            qc = PostRenderQC(self.llm, {**self.config.get("render", {}), "vision_render_qc": False})
+            out_dir = ensure_dir(run_dir / "20_render_qc")
+            cursor = 0
+            reports = []
+            for scene in hybrid_scenes:
+                dur = int(scene.duration_frames)
+                first = frame_files[min(cursor, len(frame_files) - 1)]
+                last = frame_files[min(cursor + dur - 1, len(frame_files) - 1)]
+                cursor += dur
+                # Mask of the causal (primary) object for this scene.
+                mask_path = None
+                primary = next((e.target_layer for e in scene.animation.events if not e.secondary), None)
+                contract = contracts.get(scene.scene_id)
+                if primary and contract is not None:
+                    layer = next((x for x in contract.layers if x.layer_id == primary), None)
+                    mask_path = getattr(layer, "mask_path", "") or None
+                report = qc.verify_scene(first, last, mask_path, scene.animation)
+                report["scene_id"] = scene.scene_id
+                _save(out_dir / f"{scene.scene_id}_render_qc.json", report)
+                reports.append(report)
+                if report.get("render_verified") is False:
+                    print(f"⚠ [{scene.scene_id}] post-render QC: {report.get('render_qc_reason', 'not verified')}")
+            _save(out_dir / "summary.json", {"scenes": reports})
+        except Exception:
+            pass
+
     def _should_use_temporal(self, state: ShotState) -> bool:
         config = self.config.get("temporal", {})
         if not config.get("enabled", True):
@@ -794,7 +904,12 @@ class ScientificMotionStudioV10:
         render_config = self.config.get("render", {})
         timeout = float(render_config.get("render_timeout", 2400))
         if render_config.get("install_dependencies", True):
-            subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=project, check=True, timeout=timeout)
+            subprocess.run(
+                ["npm", "install", "--no-audit", "--no-fund"],
+                cwd=project,
+                check=True,
+                timeout=timeout,
+            )
         subprocess.run(
             [
                 "npx",
