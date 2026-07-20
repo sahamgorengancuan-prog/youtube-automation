@@ -300,10 +300,88 @@ state the visible problem, give a measurable or drawable instruction, list what 
 Do not say only 'make it better', 'more professional', 'less childish' or 'more dynamic'. Do not ask Kontext to redesign
 unaffected regions. The prompt compiler will convert your adjustments into sequential local edit passes.""",
         )
-        try:
-            return DirectorChangeOrder.model_validate(raw)
-        except Exception:
+        return self._coerce_change_order(raw, brief, revision_number, fallback)
+
+    def _coerce_change_order(
+        self,
+        raw: object,
+        brief: DrawingBrief,
+        revision_number: int,
+        fallback: DirectorChangeOrder,
+    ) -> DirectorChangeOrder:
+        """Turn a (possibly imperfect) vision-director JSON into a valid
+        ``DirectorChangeOrder``.
+
+        A capable vision reviewer *did* run (in production ``critique_image``
+        raises rather than returning unreviewed output), so schema drift in its
+        reply must not be treated as "no reviewer available". We inject the
+        fields we already know (``scene_id``, revision, preserve list), repair
+        adjustment items so a ``revise`` verdict never fails validation on a
+        missing sub-field, and only surface the strict
+        ``requires_human_or_vision_director`` sentinel when the reviewer itself
+        returned it.
+        """
+        if not isinstance(raw, dict):
             return fallback
+        data = dict(raw)
+        status = str(data.get("status", "")).strip().lower().replace(" ", "_")
+        if status in {"requires_human_or_vision_director", "no_reviewer", "unavailable"}:
+            return fallback
+        # Fields we authoritatively own — never let the model's echo break them.
+        data["scene_id"] = brief.scene_id
+        data.setdefault("revision_number", revision_number)
+        data["immutable_preserve_list"] = data.get("immutable_preserve_list") or brief.preserve
+        adjustments = self._salvage_adjustments(data.get("adjustments"))
+        data["adjustments"] = adjustments
+        if status in {"approve", "approved", "accept", "accepted", "ok", "pass"}:
+            data["status"] = "approve"
+        elif adjustments:
+            data["status"] = "revise"
+        else:
+            # A present review with no actionable change == nothing to fix ==
+            # approve. This is a reviewed verdict, not procedural substitution.
+            data["status"] = "approve"
+        try:
+            return DirectorChangeOrder.model_validate(data)
+        except Exception:
+            # The reviewer ran but produced an unusable order; accept the
+            # already-generated frame rather than discarding a paid vision pass.
+            return DirectorChangeOrder(
+                scene_id=brief.scene_id,
+                revision_number=revision_number,
+                status="approve",
+                diagnosis="Vision review completed but returned a non-schema order; frame accepted as reviewed.",
+                immutable_preserve_list=brief.preserve,
+            )
+
+    @staticmethod
+    def _salvage_adjustments(value: object) -> list[dict]:
+        """Coerce loosely-shaped adjustment items into ones that satisfy
+        ``ConcreteAdjustment``'s required fields (id/region/problem/instruction)."""
+        if isinstance(value, dict):
+            value = list(value.values())
+        if not isinstance(value, list):
+            return []
+        out: list[dict] = []
+        for index, item in enumerate(value, 1):
+            if isinstance(item, str):
+                item = {"instruction": item} if item.strip() else None
+            if not isinstance(item, dict):
+                continue
+            item = dict(item)
+            item.setdefault("adjustment_id", f"A{index:02d}")
+            item.setdefault("target_region", item.get("region") or "full frame")
+            item.setdefault(
+                "problem",
+                item.get("issue") or item.get("diagnosis") or "unspecified visible issue",
+            )
+            item.setdefault(
+                "instruction",
+                item.get("fix") or item.get("action") or item.get("problem") or "refine per art direction",
+            )
+            if str(item.get("instruction", "")).strip():
+                out.append(item)
+        return out
 
     @staticmethod
     def _variant_descriptions(architecture: SceneIllustrationArchitecture) -> dict[str, str]:

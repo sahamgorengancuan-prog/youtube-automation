@@ -35,6 +35,7 @@ zoom, entrance animation, random parallax, camera shake or decorative motion."""
         *,
         fps: int,
         audio_timing: dict[str, Any] | None = None,
+        reference_motion: dict[str, Any] | None = None,
         force: bool = False,
     ) -> AnimationPlan:
         duration_frames = max(1, round(scene.duration_s * fps))
@@ -47,7 +48,7 @@ Illustration architecture: {json.dumps(architecture.model_dump(mode="json"), ens
 Available layers: {json.dumps([layer_item.model_dump(mode="json") for layer_item in contract.layers], ensure_ascii=False)}
 Duration: {duration_frames} frames at {fps} fps.
 Audio timing: {json.dumps(audio_timing or {}, ensure_ascii=False)}
-
+{self._reference_motion_guidance(reference_motion)}
 Return an AnimationPlan. Rules:
 - camera_locked=true unless an indispensable camera action is explicitly justified; no camera events otherwise.
 - Only target these exact layer IDs: {available}.
@@ -74,6 +75,36 @@ Return an AnimationPlan. Rules:
         )
         save_json(self.root / f"{scene.scene_id}.json", plan)
         return plan
+
+    @staticmethod
+    def _reference_motion_guidance(reference_motion: dict[str, Any] | None) -> str:
+        """Turn the reference video's measured motion dynamics into director
+        guidance so the animation matches its energy and rhythm (never its
+        content). Returns an empty string when no profile is available."""
+        if not isinstance(reference_motion, dict) or not reference_motion:
+            return ""
+        tempo = str(reference_motion.get("tempo", "moderate"))
+        energy = reference_motion.get("energy", "")
+        cut_rate = reference_motion.get("cut_rate", "")
+        pace = {
+            "energetic": (
+                "The reference moves with HIGH energy: give the scene fluid, continuous motion — "
+                "2-3 well-timed events that overlap and chain so the frame never feels frozen, "
+                "larger (but still causal) transforms, and smooth ease-in-out. Keep it dynamic, not jittery."
+            ),
+            "moderate": (
+                "The reference has MODERATE energy: one clear primary motion plus a supporting "
+                "secondary event, with gentle continuous easing so the scene feels alive."
+            ),
+            "calm": (
+                "The reference is CALM: keep motion restrained and deliberate — a single subtle "
+                "primary event and long holds."
+            ),
+        }.get(tempo, "")
+        return (
+            "\nReference motion profile (MATCH its energy and rhythm, NEVER its content): "
+            f"tempo={tempo}, energy={energy}, cut_rate={cut_rate}.\n{pace}\n"
+        )
 
     @staticmethod
     def _sanitize(events: list[MotionEvent], contract: SemanticLayerContract, duration: int) -> list[MotionEvent]:

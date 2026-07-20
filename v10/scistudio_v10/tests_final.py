@@ -634,7 +634,7 @@ def _test_vision_cache_content_hash(c: Collector, base: Path) -> None:
     approvals = iter(['{"status": "approve", "round": 1}', '{"status": "revise", "round": 2}'])
 
     class VisionRouter(LLMRouter):
-        def _openai_vision(self, image_path, prompt):
+        def _openai_vision(self, image_path, prompt, model=None):
             return next(approvals)
 
     router = VisionRouter(
@@ -1033,14 +1033,19 @@ def _test_vision_two_tier_escalation(c: Collector, base: Path) -> None:
             super().__init__(*args, **kwargs)
             self.primary_payload = primary_payload
             self.calls = {"openrouter": 0, "gemini": 0}
+            self.openrouter_models: list[str] = []
             self.primary_prompt = ""
 
-        def _openrouter_vision(self, image_path, prompt):
+        def _openrouter_vision(self, image_path, prompt, model=None):
             self.calls["openrouter"] += 1
-            self.primary_prompt = prompt
-            return self.primary_payload
+            self.openrouter_models.append(model)
+            if len(self.openrouter_models) == 1:
+                self.primary_prompt = prompt
+                return self.primary_payload
+            # Second OpenRouter tier == the escalation model (Gemini via OpenRouter).
+            return '{"status": "revise", "reviewer": "openrouter-escalation"}'
 
-        def _gemini_vision(self, image_path, prompt):
+        def _gemini_vision(self, image_path, prompt, model=None):
             self.calls["gemini"] += 1
             return '{"status": "revise", "reviewer": "gemini"}'
 
@@ -1107,6 +1112,96 @@ def _test_vision_two_tier_escalation(c: Collector, base: Path) -> None:
         disabled.calls == {"openrouter": 1, "gemini": 0},
         str(disabled.calls),
     )
+
+    # Both tiers via ONE OpenRouter key: primary Qwen + escalation model through
+    # the same provider (no separate Gemini key). Only OPENROUTER_API_KEY set.
+    single_key = TwoTierRouter(
+        {
+            "execution_mode": "production",
+            "provider_order": ["openai"],
+            "vision_provider_order": ["openrouter"],
+            "openrouter_vision_model": "qwen/qwen-2.5-vl-72b-instruct",
+            "openrouter_vision_escalation_model": "google/gemini-2.5-flash",
+            "vision_escalation_confidence": 0.62,
+            "retry": {"max_attempts": 1},
+        },
+        {"OPENROUTER_API_KEY": "sk-or-testkey12345678"},
+        base / "c5",
+        primary_payload='{"status": "approve", "_meta": {"review_confidence": 0.2}}',
+    )
+    out = single_key.critique_image(image_path=image, prompt="review", fallback=None, force=True)
+    c.check(
+        "openrouter-only config escalates via a second openrouter call",
+        single_key.calls == {"openrouter": 2, "gemini": 0},
+        str(single_key.calls),
+    )
+    c.check(
+        "escalation tier uses the configured openrouter escalation model",
+        single_key.openrouter_models == ["qwen/qwen-2.5-vl-72b-instruct", "google/gemini-2.5-flash"],
+        str(single_key.openrouter_models),
+    )
+    c.check("escalated verdict returned from second openrouter tier", out.get("reviewer") == "openrouter-escalation")
+
+
+def _test_director_review_salvage(c: Collector, base: Path) -> None:
+    """A present-but-imperfect vision critique must never collapse to the strict
+    'requires_human_or_vision_director' hard-fail; it is coerced into a valid
+    DirectorChangeOrder instead."""
+    from .flux_studio import FluxKontextStudio
+    from .schemas import DirectorChangeOrder, DrawingBrief
+
+    brief = DrawingBrief(
+        brief_id="B01",
+        scene_id="S01",
+        purpose="beauty_frame",
+        positive_prompt="editorial ink hero",
+        negative_prompt="no mascot",
+        kontext_instruction="render",
+        preserve=["master style"],
+    )
+    fallback = DirectorChangeOrder(
+        scene_id="S01",
+        status="requires_human_or_vision_director",
+        immutable_preserve_list=brief.preserve,
+    )
+    coerce = FluxKontextStudio._coerce_change_order.__get__(FluxKontextStudio.__new__(FluxKontextStudio))
+
+    # 1) revise verdict with adjustments missing required sub-fields -> repaired.
+    order = coerce(
+        {"status": "revise", "adjustments": [{"problem": "hand looks fused"}]},
+        brief,
+        1,
+        fallback,
+    )
+    c.check("malformed revise is salvaged, not hard-failed", order.status == "revise")
+    c.check("salvaged adjustment gets required fields", order.adjustments[0].instruction != "")
+    c.check("salvaged order carries known scene_id", order.scene_id == "S01")
+
+    # 2) revise verdict with NO actionable adjustments -> treated as approve.
+    order = coerce({"status": "revise", "adjustments": []}, brief, 1, fallback)
+    c.check("revise-without-adjustments becomes approve", order.status == "approve")
+
+    # 3) approve verdict passes straight through.
+    order = coerce({"status": "approve"}, brief, 1, fallback)
+    c.check("approve verdict preserved", order.status == "approve")
+
+    # 4) the genuine 'no reviewer' sentinel is respected (stays strict).
+    order = coerce({"status": "requires_human_or_vision_director"}, brief, 1, fallback)
+    c.check("no-reviewer sentinel is not silently approved", order.status == "requires_human_or_vision_director")
+
+
+def _test_reference_motion_guidance(c: Collector) -> None:
+    """The reference video's measured motion dynamics steer the animation
+    director's prompt; no profile means no guidance (behaviour unchanged)."""
+    from .animation_director import AnimationDirector
+
+    guide = AnimationDirector._reference_motion_guidance
+    c.check("no motion profile -> no guidance", guide(None) == "" and guide({}) == "")
+    energetic = guide({"tempo": "energetic", "energy": 0.8, "cut_rate": 0.4})
+    c.check("energetic reference asks for fluid dynamic motion", "HIGH energy" in energetic)
+    c.check("guidance forbids copying reference content", "NEVER its content" in energetic)
+    calm = guide({"tempo": "calm", "energy": 0.1, "cut_rate": 0.0})
+    c.check("calm reference asks for restrained motion", "restrained" in calm)
 
 
 # ---------------------------------------------------------------------------
@@ -1506,6 +1601,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_llm_shape_coercion(c, base / "coercion")
     _test_model_fallback(c, base / "model_fallback")
     _test_vision_two_tier_escalation(c, base / "vision_two_tier")
+    _test_director_review_salvage(c, base / "director_salvage")
+    _test_reference_motion_guidance(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")

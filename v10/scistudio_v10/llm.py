@@ -41,7 +41,14 @@ from typing import Any
 from .errors import ProviderError, ProviderUnavailableError
 from .http_safety import call_with_retries
 from .security import redacted_exception_text, register_secret
-from .utils import ensure_dir, extract_json, hash_value, load_json, save_json, sha256_file
+from .utils import (
+    ensure_dir,
+    extract_json,
+    hash_value,
+    load_json,
+    save_json,
+    sha256_file,
+)
 
 CACHE_SCHEMA_VERSION = 5
 FALLBACK_NAMESPACE = "_fallback"
@@ -96,7 +103,14 @@ class LLMRouter:
         self._openai_client = None
         self._openrouter_client = None
         self._bfl_client = None
-        for name in ("OPENAI_API_KEY", "BFL_API_KEY", "BFL_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "HF_TOKEN"):
+        for name in (
+            "OPENAI_API_KEY",
+            "BFL_API_KEY",
+            "BFL_KEY",
+            "GEMINI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "HF_TOKEN",
+        ):
             register_secret(self._secret(name))
 
     # -- mode & provider selection ----------------------------------------
@@ -288,19 +302,35 @@ class LLMRouter:
         value = fallback() if callable(fallback) else fallback
         self._store_fallback(namespace, key, value, errors or ["no provider configured"])
         if errors:
-            self._emit("llm.fallback", namespace=namespace, prompt_hash=prompt_hash, reasons=errors[-3:])
+            self._emit(
+                "llm.fallback",
+                namespace=namespace,
+                prompt_hash=prompt_hash,
+                reasons=errors[-3:],
+            )
         return value
 
     def _call_text_provider(
-        self, provider: str, system: str, prompt: str, schema: dict[str, Any] | None, temperature: float | None
+        self,
+        provider: str,
+        system: str,
+        prompt: str,
+        schema: dict[str, Any] | None,
+        temperature: float | None,
     ) -> str:
         retry_kwargs = self._retry_kwargs()
         if provider == "openai":
             return call_with_retries(lambda: self._openai_json(system, prompt, temperature), **retry_kwargs)
         if provider == "gemini":
-            return call_with_retries(lambda: self._gemini_json(system, prompt, schema, temperature), **retry_kwargs)
+            return call_with_retries(
+                lambda: self._gemini_json(system, prompt, schema, temperature),
+                **retry_kwargs,
+            )
         if provider == "openrouter":
-            return call_with_retries(lambda: self._openrouter_json(system, prompt, temperature), **retry_kwargs)
+            return call_with_retries(
+                lambda: self._openrouter_json(system, prompt, temperature),
+                **retry_kwargs,
+            )
         if provider == "local":
             return self._local_json(system, prompt, temperature)
         raise ProviderError(f"Unknown text provider {provider!r}", provider=provider)
@@ -338,19 +368,20 @@ class LLMRouter:
         fallback: Any = None,
         force: bool = False,
     ) -> Any:
-        """Two-tier vision critique.
+        """Two-tier vision critique over an ordered list of (provider, model)
+        tiers.
 
         The primary reviewer (Qwen VL via OpenRouter by default) judges every
         image; only *difficult* cases — where the primary self-reports low
-        confidence or flags the image as needing expert review — escalate to
-        the next reviewer in ``vision_provider_order`` (Gemini 2.5 Flash by
-        default). This keeps ~80% of critiques on the cheap primary while the
-        hard ~20% get the stronger reviewer. Escalation is skipped when only one
-        provider is configured or when ``vision_escalation_enabled`` is false.
+        confidence or flags the image as needing expert review — escalate to the
+        next tier (Gemini 2.5 Flash, by default served through the **same**
+        OpenRouter key). This keeps ~80% of critiques on the cheap primary while
+        the hard ~20% get the stronger reviewer. Escalation is skipped when only
+        one tier resolves or when ``vision_escalation_enabled`` is false.
         """
         image_path = Path(image_path)
-        order = self.vision_provider_order
-        escalate_enabled = bool(self.config.get("vision_escalation_enabled", True)) and len(order) > 1
+        tiers = self._vision_tiers()
+        escalate_enabled = bool(self.config.get("vision_escalation_enabled", True)) and len(tiers) > 1
         confidence_floor = float(self.config.get("vision_escalation_confidence", 0.62))
         # Cache key uses the image *content* hash — never filename + size.
         content_hash = sha256_file(image_path) if image_path.exists() else ""
@@ -358,13 +389,8 @@ class LLMRouter:
             {
                 "image_sha256": content_hash,
                 "prompt": prompt,
-                "order": order,
+                "tiers": tiers,
                 "escalation": [escalate_enabled, confidence_floor],
-                "models": {
-                    "openai": self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini",
-                    "gemini": self.config.get("gemini_vision_model") or _DEFAULT_GEMINI_VISION_MODEL,
-                    "openrouter": self.config.get("openrouter_vision_model") or _DEFAULT_QWEN_VISION_MODEL,
-                },
                 "cache_schema": CACHE_SCHEMA_VERSION,
             },
             32,
@@ -377,53 +403,91 @@ class LLMRouter:
 
         errors: list[str] = []
         retry_kwargs = self._retry_kwargs()
-        available_order = [p for p in order if self.available(p, for_vision=True)]
-        best: tuple[Any, str] | None = None
-        for index, provider in enumerate(available_order):
-            is_last = index == len(available_order) - 1
+        best: tuple[Any, str, str] | None = None
+        for index, (provider, model) in enumerate(tiers):
+            is_last = index == len(tiers) - 1
             # Ask non-final reviewers to self-report confidence so we can decide
             # whether the case is difficult enough to escalate.
             use_prompt = (
                 prompt if (is_last or not escalate_enabled) else f"{prompt}\n\n{_VISION_CONFIDENCE_INSTRUCTION}"
             )
             try:
-                if provider == "gemini":
-                    output = call_with_retries(lambda p=use_prompt: self._gemini_vision(image_path, p), **retry_kwargs)
-                elif provider == "openrouter":
-                    output = call_with_retries(
-                        lambda p=use_prompt: self._openrouter_vision(image_path, p), **retry_kwargs
-                    )
-                else:
-                    output = call_with_retries(lambda p=use_prompt: self._openai_vision(image_path, p), **retry_kwargs)
+                output = call_with_retries(
+                    lambda p=use_prompt, pr=provider, m=model: self._vision_call(pr, image_path, p, m),
+                    **retry_kwargs,
+                )
                 parsed = extract_json(output, fallback=None)
                 if parsed is None:
-                    errors.append(f"{provider}: non-JSON vision response")
+                    errors.append(f"{provider}:{model}: non-JSON vision response")
                     continue
-                best = (parsed, provider)
+                best = (parsed, provider, model)
                 if is_last or not escalate_enabled:
                     break
                 if not self._vision_needs_escalation(parsed, confidence_floor):
                     break
-                self._emit("llm.vision_escalation", namespace=namespace, from_provider=provider)
+                self._emit(
+                    "llm.vision_escalation",
+                    namespace=namespace,
+                    from_provider=provider,
+                    from_model=model,
+                )
             except Exception as exc:
-                errors.append(f"{provider}: {redacted_exception_text(exc, 400)}")
+                errors.append(f"{provider}:{model}: {redacted_exception_text(exc, 400)}")
 
         if best is not None:
-            parsed, provider = best
+            parsed, provider, model = best
             parsed = self._strip_vision_meta(parsed)
             save_json(cache_path, parsed)
-            self._emit("llm.vision_completed", provider=provider, namespace=namespace)
+            self._emit(
+                "llm.vision_completed",
+                provider=provider,
+                model=model,
+                namespace=namespace,
+            )
             return parsed
 
         if self.is_production:
             raise ProviderUnavailableError(
                 "Production vision providers unavailable or exhausted; "
-                "refusing unreviewed approval. Errors: " + (" | ".join(errors) or "no provider configured"),
-                provider=(available_order[0] if available_order else (order[0] if order else "openai")),
+                "refusing unreviewed approval. Errors: " + (" | ".join(errors) or "no vision tier configured"),
+                provider=(tiers[0][0] if tiers else "openai"),
             )
         if errors:
             self._emit("llm.vision_fallback", namespace=namespace, reasons=errors[-2:])
         return fallback() if callable(fallback) else fallback
+
+    def _vision_tiers(self) -> list[tuple[str, str]]:
+        """Resolve the ordered ``(provider, model)`` vision tiers.
+
+        Reasoning-vs-vision are decoupled: the tiers come from
+        ``vision_provider_order`` with each provider's configured vision model.
+        When OpenRouter is the only available provider, a second OpenRouter tier
+        (``openrouter_vision_escalation_model``, e.g. ``google/gemini-2.5-flash``)
+        is appended so difficult cases still get a stronger second opinion
+        through the same OpenRouter key — no separate Gemini key required.
+        """
+        tiers: list[tuple[str, str]] = []
+        for provider in self.vision_provider_order:
+            if not self.available(provider, for_vision=True):
+                continue
+            if provider == "openrouter":
+                model = self.config.get("openrouter_vision_model") or _DEFAULT_QWEN_VISION_MODEL
+            elif provider == "gemini":
+                model = self.config.get("gemini_vision_model") or _DEFAULT_GEMINI_VISION_MODEL
+            else:  # openai
+                model = self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini"
+            tiers.append((provider, model))
+        esc_model = self.config.get("openrouter_vision_escalation_model")
+        if esc_model and [p for p, _ in tiers] == ["openrouter"]:
+            tiers.append(("openrouter", esc_model))
+        return tiers
+
+    def _vision_call(self, provider: str, image_path: Path, prompt: str, model: str):
+        if provider == "gemini":
+            return self._gemini_vision(image_path, prompt, model=model)
+        if provider == "openrouter":
+            return self._openrouter_vision(image_path, prompt, model=model)
+        return self._openai_vision(image_path, prompt, model=model)
 
     @staticmethod
     def _coerce_confidence(value: Any) -> float | None:
@@ -452,14 +516,28 @@ class LLMRouter:
         if not isinstance(parsed, dict):
             return True
         meta = parsed.get("_meta") if isinstance(parsed.get("_meta"), dict) else {}
-        for flag_key in ("needs_expert_review", "escalate", "low_confidence", "uncertain"):
+        for flag_key in (
+            "needs_expert_review",
+            "escalate",
+            "low_confidence",
+            "uncertain",
+        ):
             for src in (meta, parsed):
                 flag = src.get(flag_key)
                 if isinstance(flag, bool) and flag:
                     return True
-                if isinstance(flag, str) and flag.strip().lower() in {"true", "yes", "1"}:
+                if isinstance(flag, str) and flag.strip().lower() in {
+                    "true",
+                    "yes",
+                    "1",
+                }:
                     return True
-        for conf_key in ("review_confidence", "self_confidence", "confidence", "certainty"):
+        for conf_key in (
+            "review_confidence",
+            "self_confidence",
+            "confidence",
+            "certainty",
+        ):
             for src in (meta, parsed):
                 if conf_key in src:
                     number = self._coerce_confidence(src[conf_key])
@@ -661,7 +739,13 @@ class LLMRouter:
             self._gemini_client = genai.Client(api_key=api_key)
         return self._gemini_client
 
-    def _gemini_json(self, system: str, prompt: str, schema: dict[str, Any] | None, temperature: float | None):
+    def _gemini_json(
+        self,
+        system: str,
+        prompt: str,
+        schema: dict[str, Any] | None,
+        temperature: float | None,
+    ):
         from google.genai import types
 
         model = self.config.get("gemini_model", "gemini-2.5-flash")
@@ -679,14 +763,17 @@ class LLMRouter:
         )
         return response.text
 
-    def _gemini_vision(self, image_path: Path, prompt: str):
+    def _gemini_vision(self, image_path: Path, prompt: str, model: str | None = None):
         from google.genai import types
 
-        model = self.config.get("gemini_vision_model") or self.config.get("gemini_model") or "gemini-2.5-flash"
+        model = model or self.config.get("gemini_vision_model") or self.config.get("gemini_model") or "gemini-2.5-flash"
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         response = self._gemini().models.generate_content(
             model=model,
-            contents=[types.Part.from_bytes(data=image_path.read_bytes(), mime_type=mime), prompt],
+            contents=[
+                types.Part.from_bytes(data=image_path.read_bytes(), mime_type=mime),
+                prompt,
+            ],
             config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.25),
         )
         return response.text
@@ -747,7 +834,12 @@ class LLMRouter:
                 {"role": "system", "content": [{"type": "input_text", "text": system}]},
                 {
                     "role": "user",
-                    "content": [{"type": "input_text", "text": prompt + "\nReturn a single valid JSON object only."}],
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": prompt + "\nReturn a single valid JSON object only.",
+                        }
+                    ],
                 },
             ],
             text={"format": {"type": "json_object"}},
@@ -765,8 +857,8 @@ class LLMRouter:
             )
         return text
 
-    def _openai_vision(self, image_path: Path, prompt: str):
-        model = self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini"
+    def _openai_vision(self, image_path: Path, prompt: str, model: str | None = None):
+        model = model or self.config.get("openai_vision_model") or self.config.get("openai_model") or "gpt-5-mini"
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         data_url = f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
         response = self._openai().responses.create(
@@ -775,7 +867,10 @@ class LLMRouter:
                 {
                     "role": "user",
                     "content": [
-                        {"type": "input_text", "text": prompt + "\nReturn a single valid JSON object only."},
+                        {
+                            "type": "input_text",
+                            "text": prompt + "\nReturn a single valid JSON object only.",
+                        },
                         {"type": "input_image", "image_url": data_url},
                     ],
                 }
@@ -809,15 +904,18 @@ class LLMRouter:
             model=model,
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user", "content": prompt + "\nReturn valid JSON only, no Markdown."},
+                {
+                    "role": "user",
+                    "content": prompt + "\nReturn valid JSON only, no Markdown.",
+                },
             ],
             temperature=self.config.get("temperature", 0.7) if temperature is None else temperature,
             response_format={"type": "json_object"},
         )
         return response.choices[0].message.content
 
-    def _openrouter_vision(self, image_path: Path, prompt: str):
-        model = self.config.get("openrouter_vision_model") or _DEFAULT_QWEN_VISION_MODEL
+    def _openrouter_vision(self, image_path: Path, prompt: str, model: str | None = None):
+        model = model or self.config.get("openrouter_vision_model") or _DEFAULT_QWEN_VISION_MODEL
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         data_url = f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
         response = self._openrouter().chat.completions.create(
@@ -868,7 +966,10 @@ class LLMRouter:
         tokenizer, model = self._load_local()
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": prompt + "\nReturn valid JSON only, without Markdown."},
+            {
+                "role": "user",
+                "content": prompt + "\nReturn valid JSON only, without Markdown.",
+            },
         ]
         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(text, return_tensors="pt")

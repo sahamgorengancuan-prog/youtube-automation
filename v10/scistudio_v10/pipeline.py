@@ -577,7 +577,13 @@ class ScientificMotionStudioV10:
             overlay_path = overlay_builder.build(scene, index + 1, len(storyboard.scenes))
             timing = {"words": audio_manifest.get("word_timing", {}).get(scene.beat_id, [])}
             animation = animation_director.plan(
-                scene, architecture, contract, fps=storyboard.fps, audio_timing=timing, force=force
+                scene,
+                architecture,
+                contract,
+                fps=storyboard.fps,
+                audio_timing=timing,
+                reference_motion=reference_profile.get("motion"),
+                force=force,
             )
             animation_plans.append(animation)
 

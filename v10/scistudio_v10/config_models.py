@@ -81,7 +81,13 @@ class LLMConfig(BaseModel):
 
     # Two-tier vision review: cheap primary (Qwen VL via OpenRouter) for ~80%
     # of critiques, escalate difficult/low-confidence cases to Gemini 2.5 Flash.
+    # By default both tiers run through the SAME OpenRouter key: the primary is
+    # ``openrouter_vision_model`` (Qwen) and the escalation is
+    # ``openrouter_vision_escalation_model`` (Gemini via OpenRouter), so no
+    # separate Gemini API key is required. ``gemini_vision_model`` is only used
+    # when ``gemini`` is listed explicitly in ``vision_provider_order``.
     openrouter_vision_model: str = "qwen/qwen-2.5-vl-72b-instruct"
+    openrouter_vision_escalation_model: str = "google/gemini-2.5-flash"
     gemini_vision_model: str = "gemini-2.5-flash"
     vision_escalation_enabled: bool = True
     vision_escalation_confidence: float = Field(default=0.62, ge=0.0, le=1.0)

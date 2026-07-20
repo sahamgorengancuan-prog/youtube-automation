@@ -59,10 +59,75 @@ class StyleReferenceExtractor:
             "frame_paths": frame_paths,
             "board_path": str(board),
             "palette": palette,
+            "motion": self._motion_profile(video_path, duration),
             "usage_rule": "Use visual language only. Never copy source composition, text, subjects or sequence.",
         }
         save_json(profile_path, profile)
         return profile
+
+    def _motion_profile(self, video_path: Path, duration: float) -> dict[str, Any]:
+        """Measure the reference video's *motion dynamics* (not its content) so
+        the animation director can match its energy and rhythm.
+
+        Densely samples small grayscale frames and averages consecutive
+        frame-to-frame pixel differences. Fully guarded: any failure returns an
+        empty profile and the pipeline animates as before.
+        """
+        try:
+            import statistics
+
+            if not shutil.which("ffmpeg"):
+                return {}
+            motion_dir = ensure_dir(self.root / "motion_frames")
+            for old in motion_dir.glob("*.png"):
+                old.unlink()
+            window = float(min(max(duration, 2.0), self.config.get("motion_window_s", 24.0)))
+            fps = int(self.config.get("motion_sample_fps", 2))
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-v",
+                    "error",
+                    "-t",
+                    f"{window:.2f}",
+                    "-i",
+                    str(video_path),
+                    "-vf",
+                    f"fps={fps},scale=64:64:flags=area,format=gray",
+                    str(motion_dir / "mo_%04d.png"),
+                ],
+                check=False,
+            )
+            frames = sorted(motion_dir.glob("*.png"))
+            if len(frames) < 3:
+                return {}
+            diffs: list[float] = []
+            previous: list[int] | None = None
+            for frame_path in frames:
+                pixels = list(Image.open(frame_path).convert("L").getdata())
+                if previous is not None and len(pixels) == len(previous):
+                    diffs.append(sum(abs(a - b) for a, b in zip(pixels, previous)) / (len(pixels) * 255.0))
+                previous = pixels
+            if not diffs:
+                return {}
+            # Small inter-frame pixel diffs: scale into a readable 0..1 energy.
+            gain = float(self.config.get("motion_energy_gain", 6.0))
+            energy = min(1.0, statistics.fmean(diffs) * gain)
+            peak = min(1.0, max(diffs) * gain)
+            cut_rate = sum(1 for d in diffs if d > 0.18) / len(diffs)
+            tempo = "energetic" if energy >= 0.55 else ("moderate" if energy >= 0.25 else "calm")
+            return {
+                "energy": round(energy, 3),
+                "peak_energy": round(peak, 3),
+                "tempo": tempo,
+                "cut_rate": round(cut_rate, 3),
+                "samples": len(diffs) + 1,
+                "sample_fps": fps,
+                "window_s": round(window, 2),
+            }
+        except Exception:
+            return {}
 
     @staticmethod
     def _duration(path: Path) -> float:

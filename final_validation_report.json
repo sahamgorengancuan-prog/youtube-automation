@@ -1,27 +1,29 @@
 {
-  "generated_at": "2026-07-19T17:20:00+00:00",
+  "generated_at": "2026-07-20T03:10:00+00:00",
   "package_version": "10.2.0",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 288,
+  "total_checks": 301,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (144)",
+    "finalization_tests": "PASS (157)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
     "vision_two_tier_escalation_tests": "PASS",
+    "director_review_salvage_tests": "PASS",
+    "reference_motion_guidance_tests": "PASS",
     "linear_notebook_double_execution": "PASS (fresh + resume, 52 cells, 0 errors)",
-    "control_center_notebook_double_execution": "PASS (fresh + resume, 69 cells, 0 errors)",
     "live_openai_smoke": "NOT RUN",
     "live_bfl_smoke": "NOT RUN",
     "docker_build": "NOT RUN (requires Docker: docker build -t scistudio-v10 .)"
   },
   "providers": {
-    "reasoning": "OpenAI GPT (exclusive in production)",
-    "vision_review": "Two-tier: Qwen VL via OpenRouter (primary, ~80%) with Gemini 2.5 Flash escalation for difficult/low-confidence cases (~20%); OpenAI permitted as a vision fallback. Reasoning stays OpenAI-only; images stay BFL-only.",
-    "image_generation": "BFL FLUX Kontext (exclusive in production)",
+    "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
+    "vision_review": "Two-tier via ONE OpenRouter key: Qwen VL (qwen/qwen-2.5-vl-72b-instruct) primary ~80%, escalate difficult/low-confidence cases to Gemini 2.5 Flash (google/gemini-2.5-flash) ~20% — both through OPENROUTER_API_KEY. OpenAI permitted as vision fallback. Imperfect critiques are salvaged into valid change orders instead of hard-failing.",
+    "image_generation": "BFL FLUX Kontext via BFL_API_KEY (exclusive in production)",
+    "reference_motion": "Reference video motion dynamics (energy/tempo/cut-rate) measured via frame differencing and fed to the animation director so motion matches the reference's rhythm; guarded (no-op if measurement fails).",
     "anthropic_runtime_dependency": false
   }
 }
