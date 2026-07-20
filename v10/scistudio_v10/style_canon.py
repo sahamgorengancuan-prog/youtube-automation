@@ -48,8 +48,9 @@ def base_bible(topic: str, reference_board_path: str = "") -> ArtDirectionBible:
         topic=topic,
         locked_canon=canon,
         visual_thesis=(
-            "Explain the causal chain as a single authored scientific world: mature editorial ink, "
-            "coherent perspective, fluid observational contours, restrained experiment UI, and no icon collage."
+            "Explain the causal chain as a clean flat vector science-explainer world (Kurzgesagt-style): bold "
+            "separable shapes with flat colour fills, one clear focal subject per shot, generous negative space "
+            "for labels, restrained experiment UI, and no painterly texture or icon collage."
         ),
         topic_specific_motifs=[],
         recurring_symbols=[

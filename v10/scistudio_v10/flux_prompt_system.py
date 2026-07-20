@@ -68,21 +68,23 @@ class FluxPromptSystem:
         fp = FluxStyleFingerprint(
             canon_id=canon.canon_id,
             medium_sentence=(
-                "Create a mature scientific editorial ink illustration for adults as one authored scene on warm paper, never as assembled icons."
+                "Create a modern flat vector science-explainer illustration (Kurzgesagt style): bold flat shapes, clean outlines, flat colour fills, one clear scene."
             ),
             contour_sentence=(
-                "Use fluid charcoal contours with variable pressure, purposeful breaks and tapered ends; lighter interior lines explain form, overlap, perspective and force."
+                "Even-weight vector outlines and crisp silhouettes; every object a distinct separable shape on a clean flat background; no painterly texture or hatching."
             ),
-            anatomy_sentence=("Use believable adult proportions, weight, hands and joints with natural asymmetry."),
+            anatomy_sentence=(
+                "Simple, clearly readable subjects with confident construction and believable proportions."
+            ),
             palette_sentence=(
-                f"Keep paper {canon.color.paper}, charcoal {canon.color.ink}, slate {canon.color.slate} and blue-gray {canon.color.blue_primary}, with sparse red and yellow causal accents."
+                f"Small flat palette: paper {canon.color.paper}, ink {canon.color.ink}, slate {canon.color.slate}, blue {canon.color.blue_primary}; sparse red and yellow accents; flat fills."
             ),
             composition_sentence=(
-                "Use one perspective, three to five depth planes, intentional negative space, restrained values and material-specific marks."
+                "One clear focal subject, strong flat silhouettes, a few depth planes, generous negative space for labels; objects visually separable."
             ),
             texture_sentence="",
             anti_ai_sentence=(
-                "It must feel drawn by one skilled illustrator, never clip-art, Office shapes, stickers or generic AI concept art."
+                "Clean motion-graphics artwork, never painterly, photoreal, dense, surreal, clip-art, Office shapes or stickers."
             ),
         )
         fp.immutable_prompt = self._clean(
@@ -143,7 +145,12 @@ class FluxPromptSystem:
             init_strategy="reference_board",
             output_path=self.root / "master_style_anchor.png",
             seed=self.policy.seed_base,
-            preserve=["line rhythm", "paper field", "palette roles", "scientific UI grammar"],
+            preserve=[
+                "line rhythm",
+                "paper field",
+                "palette roles",
+                "scientific UI grammar",
+            ],
             change=["all content and composition"],
             fingerprint=fp,
         )
@@ -404,7 +411,13 @@ class FluxPromptSystem:
             if len(words) > share:
                 trimmed = " ".join(words[:share]).rstrip(",;: ") + "."
                 result.append(
-                    self._block(block.block_id, block.role, trimmed, immutable=block.immutable, priority=block.priority)
+                    self._block(
+                        block.block_id,
+                        block.role,
+                        trimmed,
+                        immutable=block.immutable,
+                        priority=block.priority,
+                    )
                 )
             else:
                 result.append(block)
@@ -472,7 +485,10 @@ class FluxPromptSystem:
             prompt_upsampling=self.policy.prompt_upsampling,
             safety_tolerance=self.policy.safety_tolerance,
             output_format=self.policy.output_format,
-            request_metadata={"model": self.policy.model, "policy": self.policy.model_dump(mode="json")},
+            request_metadata={
+                "model": self.policy.model,
+                "policy": self.policy.model_dump(mode="json"),
+            },
         )
         brief.prompt_diagnostics = self.lint(brief)
         if not brief.prompt_diagnostics.valid:
@@ -484,12 +500,19 @@ class FluxPromptSystem:
         ensure_dir(Path(brief.output_path).parent)
         save_json(self.root / "briefs" / f"{brief.brief_id}.json", brief)
         if brief.prompt_diagnostics:
-            save_json(self.root / "diagnostics" / f"{brief.brief_id}.json", brief.prompt_diagnostics)
+            save_json(
+                self.root / "diagnostics" / f"{brief.brief_id}.json",
+                brief.prompt_diagnostics,
+            )
 
     @staticmethod
     def _block(block_id: str, role: str, text: str, immutable: bool = False, priority: int = 1) -> FluxPromptBlock:
         return FluxPromptBlock(
-            block_id=block_id, role=role, text=FluxPromptSystem._clean(text), immutable=immutable, priority=priority
+            block_id=block_id,
+            role=role,
+            text=FluxPromptSystem._clean(text),
+            immutable=immutable,
+            priority=priority,
         )
 
     def _negative_block(self, bible: ArtDirectionBible, extra: list[str]) -> FluxPromptBlock:
@@ -558,11 +581,17 @@ class FluxPromptSystem:
         ]
         route = " to ".join(route_items)
         p = a.perspective
-        view = re.split(r"\bwhen\b", FluxPromptSystem._clean(p.view).split(";")[0], maxsplit=1, flags=re.I)[0].rstrip(
-            " ."
-        )
+        view = re.split(
+            r"\bwhen\b",
+            FluxPromptSystem._clean(p.view).split(";")[0],
+            maxsplit=1,
+            flags=re.I,
+        )[0].rstrip(" .")
         height = re.split(
-            r"\baccording\b", FluxPromptSystem._clean(p.camera_height).split(";")[0], maxsplit=1, flags=re.I
+            r"\baccording\b",
+            FluxPromptSystem._clean(p.camera_height).split(";")[0],
+            maxsplit=1,
+            flags=re.I,
         )[0].rstrip(" .")
         negative = FluxPromptSystem._clean(a.negative_space or "Keep deliberate negative space beside the focal route.")
         return f"Use {view} from {height}, one horizon near {p.horizon_y:.2f} of frame height, and guide the eye from {route}. {negative}"
@@ -610,14 +639,20 @@ class FluxPromptSystem:
     @staticmethod
     def _strip_directive(text: str) -> str:
         return re.sub(
-            r"^(show|establish|depict|illustrate|visualize|create|resolve|conclude|summarize)\s+", "", text, flags=re.I
+            r"^(show|establish|depict|illustrate|visualize|create|resolve|conclude|summarize)\s+",
+            "",
+            text,
+            flags=re.I,
         ).strip()
 
     @staticmethod
     def _route_phrase(text: str) -> str:
         value = FluxPromptSystem._clean(text).rstrip(" .;:")
         value = re.split(
-            r"\b(?:establishes|reveals|shows|leads|guides|indicates|explains)\b", value, maxsplit=1, flags=re.I
+            r"\b(?:establishes|reveals|shows|leads|guides|indicates|explains)\b",
+            value,
+            maxsplit=1,
+            flags=re.I,
         )[0]
         return FluxPromptSystem._strip_directive(value).strip() or "causal consequence"
 

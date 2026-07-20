@@ -97,6 +97,18 @@ class SemanticMaskExtractor:
         self.config = config
         self.root = ensure_dir(root)
         self.mask_generator = mask_generator
+        # Object segmentation (SAM2 with a local heuristic fallback) is the
+        # preferred mask source: accurate, cheap and offline-capable. It only
+        # yields alpha masks — visible pixels always come from the beauty frame,
+        # so authored line quality is preserved and no image is vectorized.
+        self._segmenter = None
+        if mask_generator is None and bool(self.config.get("use_object_segmentation", True)):
+            try:
+                from .sam2_segment import ObjectSegmenter
+
+                self._segmenter = ObjectSegmenter(self.config, self.root / "segments")
+            except Exception:
+                self._segmenter = None
 
     def extract_all(
         self,
@@ -119,6 +131,11 @@ class SemanticMaskExtractor:
                 continue
             if self.mask_generator is not None:
                 result = self.mask_generator(contract.beauty_frame_path, target.region, output)
+            elif self._segmenter is not None:
+                # SAM2 (or heuristic) local segmentation — no paid image call.
+                result = self._segmenter.mask_for(contract.beauty_frame_path, target.region, output)
+                if result is None:  # segmentation failed -> last-resort drawn mask
+                    result = self._kontext_mask(contract.beauty_frame_path, target.region, output, force=force)
             else:
                 result = self._kontext_mask(contract.beauty_frame_path, target.region, output, force=force)
             if result is None:

@@ -1250,6 +1250,62 @@ def _test_shot_executor(c: Collector, base: Path) -> None:
     c.check("executor tolerates empty plan", True)
 
 
+def _test_object_segmenter(c: Collector, base: Path) -> None:
+    """The heuristic segmenter (no GPU) must separate a drawn subject from the
+    flat background into a binary mask — the basis for per-object cutouts."""
+    from PIL import Image, ImageDraw
+
+    from .sam2_segment import ObjectSegmenter
+
+    beauty = base / "beauty.png"
+    beauty.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("RGB", (240, 320), "#FAFAFA")  # flat paper background
+    ImageDraw.Draw(img).ellipse([80, 110, 160, 210], fill="#20406a")  # the subject
+    img.save(beauty)
+
+    seg = ObjectSegmenter({"use_sam2": False}, base / "seg")
+    c.check("sam2 disabled -> not available", seg.available_sam2() is False)
+    out = base / "mask.png"
+    result = seg.mask_for(beauty, "the subject", out)
+    c.check("segmenter returns a mask path", result is not None and Path(result).exists())
+    mask = Image.open(out).convert("L")
+    values = set(mask.getdata())
+    c.check("mask is binary", values <= {0, 255})
+    fg = sum(1 for p in mask.getdata() if p == 255)
+    total = mask.width * mask.height
+    c.check(
+        "subject separated (partial foreground, not empty/full)",
+        0.02 * total < fg < 0.9 * total,
+        f"fg_frac={fg / total:.3f}",
+    )
+    # Corners (background) must be black; the shape centre must be white.
+    c.check("background corner excluded from mask", mask.getpixel((2, 2)) == 0)
+    c.check("subject centre included in mask", mask.getpixel((120, 160)) == 255)
+    # The mask_generator adapter matches SemanticMaskExtractor's signature.
+    gen = seg.as_mask_generator()
+    c.check("mask_generator adapter works", gen(str(beauty), "the subject", base / "mask2.png") is not None)
+
+
+def _test_flat_explainer_style(c: Collector) -> None:
+    """Art direction must steer flat vector explainer, not painterly ink."""
+    from .schemas import HardCodedStyleCanon
+    from .style_canon import base_bible
+
+    canon = HardCodedStyleCanon()
+    c.check("canon medium is flat vector", "flat vector" in canon.medium.lower())
+    c.check("canon dropped editorial-ink medium", "editorial ink" not in canon.medium.lower())
+    bible = base_bible("what happens if it rains")
+    c.check("bible visual thesis is flat explainer", "flat vector" in bible.visual_thesis.lower())
+
+    from .flux_prompt_system import FluxPromptSystem
+
+    fps = FluxPromptSystem({}, _fresh_root(None, "flux_style_"))
+    fingerprint = fps.fingerprint(bible)
+    prompt = fingerprint.immutable_prompt.lower()
+    c.check("FLUX style prompt asks for flat vector shapes", "flat" in prompt and "vector" in prompt)
+    c.check("FLUX style prompt forbids painterly", "painterly" in prompt)
+
+
 def _test_motion_eval(c: Collector) -> None:
     """Separated motion axes + the causal-clarity gate: supporting motion alone
     must not pass, and a declared hold must."""
@@ -1699,6 +1755,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_reference_motion_guidance(c)
     _test_shot_executor(c, base / "shot_executor")
     _test_motion_eval(c)
+    _test_object_segmenter(c, base / "segmenter")
+    _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
     _test_cli(c, base / "cli")

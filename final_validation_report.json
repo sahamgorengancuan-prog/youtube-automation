@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-07-20T05:00:00+00:00",
+  "generated_at": "2026-07-20T06:30:00+00:00",
   "package_version": "10.2.0",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 314,
+  "total_checks": 326,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (170)",
+    "finalization_tests": "PASS (182)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -15,12 +15,14 @@
     "director_review_salvage_tests": "PASS",
     "reference_motion_guidance_tests": "PASS",
     "linear_notebook_double_execution": "PASS (fresh + resume, 52 cells, 0 errors)",
-    "offline_render_motion": "PASS (authored DSL only: default hold, object state change carries the shot, no gratuitous camera/particle/caption)",
+    "offline_render_motion": "PASS (authored DSL; object masks + cutouts produced by segmenter for per-object motion)",
     "live_openai_smoke": "NOT RUN",
     "live_bfl_smoke": "NOT RUN",
     "docker_build": "NOT RUN (requires Docker: docker build -t scistudio-v10 .)",
     "shot_executor_tests": "PASS (DSL-driven: nothing auto-activates; directives executed exactly)",
-    "motion_eval_causal_gate_tests": "PASS (supporting-only motion fails; object state change or declared hold passes)"
+    "motion_eval_causal_gate_tests": "PASS (supporting-only motion fails; object state change or declared hold passes)",
+    "object_segmentation_tests": "PASS (SAM2 backend + heuristic fallback; binary mask separates subject from background)",
+    "flat_explainer_style_tests": "PASS (canon/bible/FLUX prompt steer flat vector, not painterly ink)"
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
@@ -28,6 +30,8 @@
     "image_generation": "BFL FLUX Kontext via BFL_API_KEY (exclusive in production)",
     "reference_motion": "Reference video motion dynamics (energy/tempo/cut-rate) measured via frame differencing and fed to the animation director so motion matches the reference's rhythm; guarded (no-op if measurement fails).",
     "anthropic_runtime_dependency": false,
-    "animation": "Authored animation DSL per shot (Director-authored: object state change is primary; camera/particles/captions are opt-in supporting elements, off by default). Renderer is a pure executor. Primary quality gate is causal clarity, not motion energy."
+    "animation": "Authored animation DSL per shot (Director-authored: object state change is primary; camera/particles/captions are opt-in supporting elements, off by default). Renderer is a pure executor. Primary quality gate is causal clarity, not motion energy.",
+    "object_separation": "SAM2 (Ultralytics/segment-anything, GPU) with a local heuristic fallback (colour-distance-from-background) that runs without GPU; produces per-object alpha masks -> cutouts so MotionEvents move individual objects. Visible pixels always from the beauty frame (no vectorization).",
+    "art_direction": "Flat vector science-explainer (Kurzgesagt-style): bold separable shapes, clean outlines, flat fills, negative space for labels. Replaces the painterly editorial-ink canon."
   }
 }

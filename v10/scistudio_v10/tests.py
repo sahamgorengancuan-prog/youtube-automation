@@ -82,7 +82,7 @@ def run_regression_tests(root: str | Path | None = None) -> dict[str, Any]:
         canon_id="other",
         locked_canon={"canon_id": "experiment-ledger-editorial-ink-v1", "display_name": "tampered"},
     )
-    r.check("LLM cannot rename canon", tampered.locked_canon.display_name == "Experiment Ledger Editorial Ink")
+    r.check("LLM cannot rename canon", tampered.locked_canon.display_name == "Flat Vector Science Explainer")
 
     continuity = ContinuityCanon(
         palette_lock=canon.color.model_dump(mode="json"),
@@ -133,7 +133,7 @@ def run_regression_tests(root: str | Path | None = None) -> dict[str, Any]:
     brief = brief_compiler.beauty_frame(architecture, bible, continuity, pack, scene.narration, scene.headline, 0)
     prompt_low = brief.positive_prompt.lower()
     r.check("brief is scene-first", "one integrated" in prompt_low and "isolated icon" in brief.negative_prompt.lower())
-    r.check("brief hard-codes line system", "variable pressure" in prompt_low and "purposeful breaks" in prompt_low)
+    r.check("brief hard-codes flat vector line system", "flat" in prompt_low and "vector" in prompt_low)
     r.check("brief forbids office-shape look", "microsoft word shape assembly" in brief.negative_prompt.lower())
     r.check("brief uses stable seed policy", brief.seed == 1234)
     try:
@@ -234,7 +234,7 @@ def run_regression_tests(root: str | Path | None = None) -> dict[str, Any]:
     )
     r.check("prompt length is directed not bloated", 80 <= brief.prompt_diagnostics.word_count <= 380)
     first_55 = " ".join(brief.compiled_prompt.lower().split()[:55])
-    r.check("style stated before scene detail", "scientific editorial" in first_55 and "illustration" in first_55)
+    r.check("style stated before scene detail", "flat vector" in first_55 and "illustration" in first_55)
     r.check("Kontext prompt upsampling disabled", brief.prompt_upsampling is False)
     r.check(
         "single input strategy recorded",

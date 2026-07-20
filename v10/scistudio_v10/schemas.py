@@ -271,7 +271,12 @@ class ColorLanguage(OpenModel):
 class TypographyLanguage(OpenModel):
     family: str = "condensed grotesk sans serif"
     fallback_stack: list[str] = Field(
-        default_factory=lambda: ["Arial Narrow", "Roboto Condensed", "Arial", "sans-serif"]
+        default_factory=lambda: [
+            "Arial Narrow",
+            "Roboto Condensed",
+            "Arial",
+            "sans-serif",
+        ]
     )
     headline_case: str = "uppercase"
     headline_weight: int = 900
@@ -311,9 +316,11 @@ class MotionLanguage(OpenModel):
 
 class HardCodedStyleCanon(OpenModel):
     canon_id: Literal["experiment-ledger-editorial-ink-v1"] = "experiment-ledger-editorial-ink-v1"
-    display_name: str = "Experiment Ledger Editorial Ink"
+    display_name: str = "Flat Vector Science Explainer"
     reference_origin: str = "user-supplied experiment-style scientific motion reference"
-    medium: str = "authored digital editorial ink illustration with restrained flat material planes"
+    medium: str = (
+        "modern flat vector science-explainer illustration with bold shapes, clean outlines and flat colour fills"
+    )
     audience_age: str = "adult general science audience"
     line: LineLanguage = Field(default_factory=LineLanguage)
     color: ColorLanguage = Field(default_factory=ColorLanguage)
@@ -330,15 +337,15 @@ class HardCodedStyleCanon(OpenModel):
     )
     visual_traits: list[str] = Field(
         default_factory=lambda: [
-            "mature scientific editorial illustration",
-            "fluid authored contours",
-            "observational anatomy and material construction",
-            "integrated causal environments",
-            "paper-like light background",
-            "charcoal and blue-gray structural palette",
+            "modern flat vector science-explainer illustration (Kurzgesagt-style)",
+            "bold clean shapes with even-weight outlines and flat colour fills",
+            "every object a distinct, separable silhouette on a clean background",
+            "clear focal subject per shot with generous negative space for labels",
+            "flat light background",
+            "small flat blue-gray palette",
             "sparse red warning and yellow energy accents",
             "condensed uppercase scientific labels",
-            "controlled texture and line imperfections",
+            "no painterly texture, no photoreal, no dense surreal illustration",
         ]
     )
     forbidden: list[str] = Field(
@@ -365,9 +372,11 @@ class HardCodedStyleCanon(OpenModel):
     @model_validator(mode="after")
     def lock_identity(self):
         # The LLM may enrich topic-specific direction elsewhere, but it cannot
-        # rename or mutate the studio's hard-coded visual identity.
+        # rename or mutate the studio's hard-coded visual identity. (canon_id is
+        # kept as the stable internal key; the human-facing name is the flat
+        # vector explainer style.)
         self.canon_id = "experiment-ledger-editorial-ink-v1"
-        self.display_name = "Experiment Ledger Editorial Ink"
+        self.display_name = "Flat Vector Science Explainer"
         return self
 
 
@@ -395,7 +404,11 @@ class ArtDirectionBible(OpenModel):
 class CanonAnchor(OpenModel):
     anchor_id: str
     role: Literal[
-        "reference_video_board", "master_style_anchor", "approved_scene", "subject_sheet", "environment_sheet"
+        "reference_video_board",
+        "master_style_anchor",
+        "approved_scene",
+        "subject_sheet",
+        "environment_sheet",
     ]
     path: str
     scene_id: str = ""
@@ -474,7 +487,12 @@ class MotionSeam(OpenModel):
     seam_id: str
     subject: str
     method: Literal[
-        "replacement_pose", "semantic_mask", "layer_transform", "local_deformation", "texture_loop", "overlay_only"
+        "replacement_pose",
+        "semantic_mask",
+        "layer_transform",
+        "local_deformation",
+        "texture_loop",
+        "overlay_only",
     ]
     region: str
     resting_overlap_rule: str
@@ -517,7 +535,11 @@ class ReferenceRequirement(OpenModel):
     priority: int = 1
     use_rule: str = "observe structure only; do not copy composition"
     source_preference: list[str] = Field(
-        default_factory=lambda: ["user reference", "licensed stock", "generated reference"]
+        default_factory=lambda: [
+            "user reference",
+            "licensed stock",
+            "generated reference",
+        ]
     )
 
 
@@ -574,7 +596,11 @@ class FluxPromptStack(OpenModel):
     scene_delta_hash: str = ""
     word_count: int = 0
     init_strategy: Literal[
-        "reference_board", "master_style_anchor", "previous_approved_scene", "approved_beauty_frame", "current_revision"
+        "reference_board",
+        "master_style_anchor",
+        "previous_approved_scene",
+        "approved_beauty_frame",
+        "current_revision",
     ] = "master_style_anchor"
 
 
@@ -716,7 +742,13 @@ class SemanticLayer(OpenModel):
     layer_id: str
     description: str
     source_region: str
-    extraction_method: Literal["external_mask", "kontext_isolation", "artist_layer", "full_frame", "scientific_overlay"]
+    extraction_method: Literal[
+        "external_mask",
+        "kontext_isolation",
+        "artist_layer",
+        "full_frame",
+        "scientific_overlay",
+    ]
     z_index: int = 0
     locked: bool = True
     mask_path: str = ""
@@ -784,7 +816,12 @@ class EffectDirective(OpenModel):
     causal action."""
 
     effect: Literal["none", "rain", "water", "snow", "wind", "spark", "bubble", "dust"] = "none"
-    region: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)  # normalized x0,y0,x1,y1
+    region: tuple[float, float, float, float] = (
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+    )  # normalized x0,y0,x1,y1
     intensity: float = 0.0  # 0 = off
     direction_deg: float = 90.0  # travel direction; 90 = downward
     start_frame: int = 0
