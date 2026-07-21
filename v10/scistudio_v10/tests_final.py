@@ -1628,9 +1628,10 @@ def _test_part_perceptual_qc(c: Collector, base: Path) -> None:
     report = perceptual_qc(rig, base_cut, base / "qc", config={})
     c.check("QC produced a contact sheet on disk", Path(report["contact_sheet"]).exists())
     c.check("contact sheet has rest + 3 articulated poses", len(QC_POSES) == 4)
-    for key in ("structural_ok", "issues", "part_source", "min_confidence", "failed_parts", "ok"):
+    for key in ("structural_ok", "issues", "area_spread", "part_source", "min_confidence", "failed_parts", "ok"):
         c.check(f"QC report has '{key}'", key in report)
     c.check("QC report ok is a boolean verdict", isinstance(report["ok"], bool))
+    c.check("limb-length/tearing area_spread is measured (0..1)", 0.0 <= report["area_spread"] <= 1.0)
 
 
 def _test_character_director(c: Collector, base: Path) -> None:

@@ -138,6 +138,22 @@ def perceptual_qc(
     if bad_z:
         issues.append(f"occlusion_order: {bad_z} not in front of torso")
 
+    # -- limb-length stability / no tearing: rigid FK preserves each part, so the
+    # total visible character area must stay stable across poses. A big drop means
+    # a part vanished/flew off (tearing) or stretched away.
+    areas = []
+    for _label, pose in QC_POSES:
+        img = deformer.deform(base_cutout, rig, parts, pose, 1.0) if pose else base_cutout.convert("RGBA")
+        a = img.convert("RGBA").getchannel("A")
+        areas.append(sum(1 for v in a.getdata() if v >= 128))
+    if areas and max(areas) > 0:
+        spread = (max(areas) - min(areas)) / max(areas)
+        report_area_spread = round(spread, 3)
+        if spread > float(config.get("qc_max_area_spread", 0.30)):
+            issues.append(f"limb_length_or_tearing: area varies {spread:.2f} across poses")
+    else:
+        report_area_spread = 1.0
+
     # -- no torso drag: the upper-arm mask must not overlap the torso column much.
     torso = parts.get("spine")
     drag = []
@@ -161,19 +177,26 @@ def perceptual_qc(
         "contact_sheet": str(sheet_path),
         "structural_ok": not issues,
         "issues": issues,
+        "area_spread": report_area_spread,
         "part_source": "sam2" if pq.get("refined_with_sam2") else "geometric",
         "min_confidence": pq.get("min_confidence", 0.0),
         "failed_parts": pq.get("failed_parts", []),
     }
 
     if config.get("vision_part_qc") and llm is not None:
-        report["vision_qc"] = _vision_gate(llm, sheet_path)
+        report["vision_qc"] = _vision_gate(llm, sheet_path, config.get("causal_summary", ""))
 
     report["ok"] = report["structural_ok"] and not report["failed_parts"]
     return report
 
 
-def _vision_gate(llm: Any, sheet_path: str | Path) -> Any:
+def _vision_gate(llm: Any, sheet_path: str | Path, causal_summary: str = "") -> Any:
+    narration = (
+        f" The shot's intended action is: '{causal_summary}'. Also judge pose_fits_narration: does the "
+        "articulated pose plausibly depict that action?"
+        if causal_summary
+        else ""
+    )
     try:
         return llm.critique_image(
             image_path=str(sheet_path),
@@ -181,8 +204,9 @@ def _vision_gate(llm: Any, sheet_path: str | Path) -> Any:
                 "This is a contact sheet: the SAME character in a rest pose then three articulated poses. "
                 'Judge the rig quality. Return JSON: {"joints_connected": true/false, "tearing": true/false, '
                 '"limb_length_consistent": true/false, "background_clean": true/false, '
-                '"looks_like_one_body": true/false, "reason": "..."}. '
+                '"looks_like_one_body": true/false, "pose_fits_narration": true/false, "reason": "..."}. '
                 "Flag any gap at shoulder/elbow/hip/knee, any body part that detached, or torso dragged by an arm."
+                + narration
             ),
             namespace="part_perceptual_qc",
             fallback=None,

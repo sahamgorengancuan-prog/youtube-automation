@@ -3,11 +3,11 @@
   "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 406,
+  "total_checks": 408,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (262)",
+    "finalization_tests": "PASS (264)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -37,7 +37,7 @@
     "articulation_quality_gate": "PASS (pipeline fails a scene when a character requires_articulation but rig_count==0 — refuses to ship a static cutout; override allow_unrigged_characters)",
     "rig_activation_real_topic": "PASS (offline run of 'What happens to a human body in zero gravity?' produced 3 CharacterManifests + 3 rig.json + skeletal_pose per scene + valid MP4 from the topic alone — not forced architecture)",
     "anatomical_separation_tests": "PASS (14 named parts head/spine/upper_arm/forearm/hand/thigh/calf/foot L+R, each with parent/pivot/rest_rotation/z-order/confidence/mask/cutout; zero background leakage; arms occlude in front of torso)",
-    "part_perceptual_qc_tests": "PASS (contact sheet rest+3 poses + structural joint-gap/leakage/occlusion/torso-drag checks; surfaces issues rather than rubber-stamping)",
+    "part_perceptual_qc_tests": "PASS (contact sheet rest+3 poses + joint-gap/leakage/occlusion/torso-drag + limb-length/tearing area-spread + optional Qwen vision gate incl. pose-fits-narration)",
     "anatomical_separation_real_topic": "PASS run / QC-FLAGGED offline (real zero-gravity topic emits all 14 part PNGs + cutouts + per-scene contact sheet + part_qc report; offline geometric fallback is QC-flagged for joint gaps/torso-drag and marked source=geometric conf~0.59 — NOT accepted as production output)",
     "production_refuses_coarse_parts": "ENFORCED (execution_mode=production fails when part_source!=sam2 or QC has issues; offline/test keeps geometric as a flagged preview with warnings). SAM2 per-limb refinement is GPU-gated and unverifiable in this offline env.",
     "remotion_skeletal_executor": "RENDERED (nested-FK: CSS nested transforms compose parent->child; _export_rig writes part cutouts + resolved per-bone deltas to data.json; SkeletalLayer/Bone interleave own image + child subtrees by z-order). Isolated render MP4 articulates 18.5% localized to the character band.",
@@ -47,7 +47,9 @@
     "rive": "Custom 2D cutout skeletal rig, explicitly NOT Rive (no artboard/mesh/state-machine/.riv). Real-Rive path via a pre-made human_template.riv on the Rive Web Runtime remains optional/pending.",
     "figure_detection": "Keyword figure-gate replaced by an explicit CharacterManifest (vision in production, structured figure_construction offline) + _ensure_articulation guaranteeing a skeletal_pose post-plan.",
     "anatomical_separation": "Capsule carving removed as accepted output. AnatomicalPartSegmenter: whole-char mask + pose keypoints + per-limb SAM2 refinement (negative points exclude torso/far-limb) + joint overlap + occlusion z-order + per-part QC/retry + confidence; part_qc renders a contact sheet + structural + optional Qwen vision gate. Production refuses geometric/QC-flagged parts. SAM2 per-limb refinement is GPU-gated (unverified offline); the offline geometric preview is QC-flagged, not accepted.",
-    "still_open": "Remotion skeletal executor pending (articulation is PIL-only today; the production Remotion path does not yet articulate limbs); PixiJS / WAN / SkyReels / FLUX-hero-PNG pending. 'No gap / no torso-drag' is met by the SAM2 production path only, which needs a GPU."
+    "remotion_articulation": "DONE. Nested-FK SkeletalLayer renders object-level articulation; proven by an actual Remotion render and a full pipeline->Remotion run (both show limb articulation on the MP4).",
+    "perceptual_qc": "DONE. part_qc checks joint gaps, background leakage, occlusion order, torso-drag, limb-length/tearing (area-spread) + optional Qwen vision gate incl. pose-fits-narration.",
+    "still_open": "PixiJS effects, WAN 2.2 / SkyReels, FLUX isolated hero assets, and the optional Rive .riv template remain (in that order), not started. 'No gap / no torso-drag' cleanliness is met by the SAM2 production path only, which needs a GPU (unverified offline)."
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
