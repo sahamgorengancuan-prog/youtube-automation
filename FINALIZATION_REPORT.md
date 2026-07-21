@@ -464,12 +464,42 @@ met by the **production SAM2 path**, which is GPU-gated and therefore not verifi
 here — this is stated rather than glossed. The geometric fallback is never
 presented as clean production output; production refuses it.
 
+### Increment 4 — Remotion nested-FK skeletal executor (audit P4)
+
+Articulation is no longer PIL-only. The Remotion template now interprets the same
+rig the PIL renderer uses:
+
+* **`_export_rig` (Python).** For a rigged layer, every bone's part cutout is
+  copied into `public/`, and the authored `skeletal_pose` is resolved to explicit
+  per-bone angle deltas + a timing window — so the JS reads only numbers.
+* **Nested forward kinematics (TypeScript).** `SkeletalLayer`/`Bone` build a DOM
+  tree matching the bone hierarchy. **CSS nested transforms compose parent→child**,
+  so each bone applies only its own `rotate()` about its pivot and the chain
+  accumulates automatically (true FK). Own image + child subtrees are interleaved
+  by z-order, so the torso sits behind and arms/head in front.
+* **Actually rendered (not just compiled).** With Node 22 present, `npm install`
+  + `npx remotion render` produced an MP4 whose character **articulates** — 18.5 %
+  of pixels change and the change is localized to the character band (3025 inside
+  vs 926 outside).
+* **Full pipeline → Remotion, end to end.** The offline pipeline for the
+  zero-gravity topic, forced to `render.backend="remotion"`, ran
+  `topic → storyboard → architecture → CharacterManifest → rig → DSL → Remotion
+  render` with 0 errors and produced a valid H.264 MP4 whose character
+  articulates (33.6 % change). `_render_remotion` gained an optional
+  `--browser-executable` (config `remotion_browser_executable` or
+  `SCISTUDIO_REMOTION_BROWSER`) so locked-egress environments point at a
+  pre-installed Chrome; Colab still auto-downloads Remotion's shell. Nothing is
+  disabled.
+
+The production Remotion path now shows clean object-level articulation on the
+final MP4 — the phase-completion bar for P4.
+
 ### Still open (honest status, being built next)
 
-* **Remotion skeletal executor (audit #6 / P4).** Articulation is still PIL-only;
-  the production Remotion path does not yet do nested-FK limb articulation. This
-  is the next task — the phase is "done" only when the real-topic *production*
-  path renders clean object-level articulation through Remotion.
+* **Anatomical cleanliness on the SAM2 path** is still GPU-gated and unverified
+  offline (the geometric preview is QC-flagged, never accepted as production).
+* **PixiJS effects, WAN 2.2 / SkyReels, FLUX isolated hero assets, and the
+  optional Rive `.riv` template** remain — in that order — and are not started.
 
 * **PixiJS (audit #5)** — real GPU particle/shader layer in the Remotion render
   (npm `pixi.js`): not yet present; current particles are PIL / React-div.

@@ -148,6 +148,8 @@ class PILHybridRenderer:
                 (frame - event.start_frame) / max(1, event.end_frame - event.start_frame),
             ),
         )
+        if event.representation == "skeletal_pose" and getattr(layer, "rig", None):
+            return self._skeletal(layer, image, event, progress)
         if event.representation == "replacement_pose" and len(images) > 1:
             index = min(len(images) - 1, int(progress * len(images)))
             return images[index].copy()
@@ -198,6 +200,29 @@ class PILHybridRenderer:
             return images[min(len(images) - 1, int(progress * len(images)))].copy()
         return image
 
+    def _skeletal(self, layer: HybridLayer, image: Image.Image, event: MotionEvent, progress: float) -> Image.Image:
+        """Execute an authored ``skeletal_pose``: deform the rigged character's
+        body parts along its bones (forward kinematics). Pure executor."""
+        from .skeletal_deform import SkeletalDeformer, resolve_pose
+
+        if not hasattr(self, "_deformer"):
+            self._deformer = SkeletalDeformer(self.config)
+            self._part_cache: dict[str, Image.Image] = {}
+        pose = resolve_pose(event.parameters)
+        if not pose:
+            return image
+        part_masks: dict[str, Image.Image] = {}
+        for name, path in (getattr(layer, "part_masks", None) or {}).items():
+            cached = self._part_cache.get(path)
+            if cached is None and Path(path).exists():
+                cached = Image.open(path).convert("L")
+                self._part_cache[path] = cached
+            if cached is not None:
+                part_masks[name] = cached
+        if not part_masks:
+            return image
+        return self._deformer.deform(image, layer.rig, part_masks, pose, progress)
+
 
 class RemotionHybridExporter:
     """Writes a production Remotion project for the same hybrid packages."""
@@ -205,6 +230,45 @@ class RemotionHybridExporter:
     def __init__(self, config: dict[str, Any], root: str | Path):
         self.config = config
         self.root = ensure_dir(root)
+
+    def _export_rig(self, rig, scene, layer, public: Path) -> dict[str, Any]:
+        """Copy each bone's part cutout to public/ and resolve the layer's
+        authored skeletal_pose to explicit per-bone angle deltas + a time window,
+        so the JS executor only reads numbers (no gesture library in JS)."""
+        from .skeletal_deform import resolve_pose
+
+        event = next(
+            (
+                e
+                for e in scene.animation.events
+                if e.target_layer == layer.layer_id and e.representation == "skeletal_pose"
+            ),
+            None,
+        )
+        pose = resolve_pose(event.parameters) if event is not None else {}
+        bones = []
+        for bone in rig["bones"]:
+            cut = bone.get("cutout")
+            if not cut or not Path(cut).exists():
+                continue
+            name = f"{scene.scene_id}_{layer.layer_id}_{bone['name']}_cutout.png".replace(" ", "_")
+            shutil.copy2(cut, public / name)
+            bones.append(
+                {
+                    "name": bone["name"],
+                    "parent": bone.get("parent"),
+                    "pivot": bone.get("pivot", [0.5, 0.5]),
+                    "z": bone.get("z", 20),
+                    "cutout": name,
+                    "delta": float(pose.get(bone["name"], 0.0)),
+                }
+            )
+        window = (
+            {"start_frame": event.start_frame, "end_frame": event.end_frame, "easing": event.easing}
+            if event is not None
+            else {"start_frame": 0, "end_frame": 0, "easing": "ease_in_out"}
+        )
+        return {"bones": bones, "window": window}
 
     def create_project(self, scenes: list[HybridScenePackage], support_bed_path: str = "") -> Path:
         public = ensure_dir(self.root / "public")
@@ -226,13 +290,18 @@ class RemotionHybridExporter:
                     copied.append(name)
                 if not copied:
                     continue
-                layers.append(
-                    {
-                        **layer.model_dump(mode="json"),
-                        "path": copied[0],
-                        "pose_paths": copied[1:],
-                    }
-                )
+                layer_data = {
+                    **layer.model_dump(mode="json"),
+                    "path": copied[0],
+                    "pose_paths": copied[1:],
+                }
+                # Export the articulated rig (part cutouts + resolved pose) so the
+                # Remotion renderer can do nested forward kinematics — the SAME
+                # rig the PIL renderer uses. Nested DOM transforms compose FK.
+                rig = getattr(layer, "rig", None)
+                if rig and rig.get("bones"):
+                    layer_data["rig"] = self._export_rig(rig, scene, layer, public)
+                layers.append(layer_data)
             data_scenes.append(
                 {
                     **scene.model_dump(mode="json", exclude={"layers"}),
@@ -352,11 +421,34 @@ const Captions=({scene,frame,total,width,height}:any)=>{
   return <>{caps.map((c:any,ci:number)=>{const lower=c.kind==='headline';const style:any={position:'absolute',zIndex:95,color:'#f5f7fa',fontFamily:'sans-serif',fontWeight:700,padding:'2%'};if(lower){style.left=0;style.right=0;style.bottom=0;style.background='rgba(14,20,26,0.8)';style.fontSize=height*0.03;}else{style.top='4%';style[c.position==='top_right'?'right':'left']='4%';style.fontSize=height*0.016;style.color='#1e2830';}return <div key={ci} style={style}>{lower?String(c.text).toUpperCase():c.text}</div>;})}</>;
 };
 
+// Nested forward kinematics: CSS nested transforms compose parent->child, so a
+// bone element applies only its OWN rotation about its pivot and the parent
+// chain accumulates automatically. Own image + child subtrees are interleaved by
+// z-order so the torso sits behind, arms/head in front.
+const skelProgress=(rig:any,frame:number,total:number)=>{const w=rig.window||{};let s=w.start_frame||0,e=w.end_frame||0;if(e<=s){s=0;e=total;}return ease(Math.max(0,Math.min(1,(frame-s)/Math.max(1,e-s))),w.easing||'ease_in_out');};
+const Bone=({bone,byParent,progress,width,height}:any)=>{
+  const pv=bone.pivot||[0.5,0.5];
+  const kids=(byParent[bone.name]||[]).slice();
+  const items=[{z:bone.z,el:<Img key={bone.name+'-img'} src={staticFile(bone.cutout)} style={{position:'absolute',inset:0,width,height,objectFit:'fill'}}/>},
+    ...kids.map((k:any)=>({z:k.z,el:<Bone key={k.name} bone={k} byParent={byParent} progress={progress} width={width} height={height}/>}))].sort((a:any,b:any)=>a.z-b.z);
+  return <div style={{position:'absolute',inset:0,transformOrigin:`${pv[0]*100}% ${pv[1]*100}%`,transform:`rotate(${(bone.delta||0)*progress}deg)`}}>{items.map((it:any,i:number)=><React.Fragment key={i}>{it.el}</React.Fragment>)}</div>;
+};
+const SkeletalLayer=({layer,scene,frame,total,width,height}:any)=>{
+  const rig=layer.rig;const byParent:any={};(rig.bones||[]).forEach((b:any)=>{const p=b.parent||'__root__';(byParent[p]=byParent[p]||[]).push(b);});
+  Object.keys(byParent).forEach(k=>byParent[k].sort((a:any,b:any)=>a.z-b.z));
+  const st=layerState(scene,layer,frame,total);const progress=skelProgress(rig,frame,total);
+  return <div style={{position:'absolute',inset:0,zIndex:layer.z_index,opacity:st.opacity,transform:st.transform}}>
+    {(byParent['__root__']||[]).map((r:any)=><Bone key={r.name} bone={r} byParent={byParent} progress={progress} width={width} height={height}/>)}
+  </div>;
+};
+
 const SceneView=({scene}:any)=>{
   const frame=useCurrentFrame();const {width,height}=useVideoConfig();const total=scene.duration_frames;
   return <AbsoluteFill style={{background:scene.background,overflow:'hidden',...cameraStyle(scene,frame,total)}}>
     {[...scene.layers].sort((a:any,b:any)=>(a.z_index||0)-(b.z_index||0)).map((layer:any)=>{
       const st=layerState(scene,layer,frame,total);const pv=layer.pivot||[0.5,0.5];
+      if(layer.rig&&layer.rig.bones&&layer.rig.bones.length)
+        return <SkeletalLayer key={layer.layer_id} layer={layer} scene={scene} frame={frame} total={total} width={width} height={height}/>;
       return layer.kind==='video_clip'
         ? <OffthreadVideo key={layer.layer_id} src={staticFile(st.source)} muted style={{position:'absolute',inset:0,width,height,objectFit:'fill',zIndex:layer.z_index}}/>
         : <Img key={layer.layer_id} src={staticFile(st.source)} style={{position:'absolute',inset:0,width,height,objectFit:'fill',zIndex:layer.z_index,opacity:st.opacity,transform:st.transform,transformOrigin:`${pv[0]*100}% ${pv[1]*100}%`}}/>;
