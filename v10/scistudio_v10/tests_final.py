@@ -1537,6 +1537,102 @@ def _test_skeletal_deform(c: Collector, base: Path) -> None:
     c.check("skeletal deform produces visible articulation rest->pose", changed > 200, f"changed={changed}")
 
 
+def _test_anatomical_separation(c: Collector, base: Path) -> None:
+    """Anatomical separation yields all 14 named parts, each with parent, pivot,
+    rest_rotation, z-order and confidence, every part inside the silhouette (no
+    background leakage), arms occluding in front of the torso."""
+    from PIL import Image, ImageDraw
+
+    from .rig_builder import RigBuilder
+
+    base.mkdir(parents=True, exist_ok=True)
+    b = Image.new("RGB", (240, 420), "white")
+    dr = ImageDraw.Draw(b)
+    dr.ellipse([95, 30, 145, 90], fill=(210, 150, 110))
+    dr.rectangle([100, 90, 140, 240], fill=(70, 110, 190))
+    dr.rectangle([70, 100, 100, 220], fill=(70, 110, 190))
+    dr.rectangle([140, 100, 170, 220], fill=(70, 110, 190))
+    dr.rectangle([102, 240, 118, 400], fill=(60, 60, 90))
+    dr.rectangle([122, 240, 138, 400], fill=(60, 60, 90))
+    bp = base / "b.png"
+    b.save(bp)
+    m = Image.new("L", (240, 420), 0)
+    mm = ImageDraw.Draw(m)
+    mm.ellipse([95, 30, 145, 90], fill=255)
+    mm.rectangle([70, 90, 170, 240], fill=255)
+    mm.rectangle([102, 240, 138, 400], fill=255)
+    mp = base / "m.png"
+    m.save(mp)
+
+    rig = RigBuilder({}, base).build(bp, (0.29, 0.07, 0.71, 0.95), mp, "char", is_figure=True, out_dir=base)
+    expected = [
+        "head",
+        "spine",
+        "upper_arm_l",
+        "forearm_l",
+        "hand_l",
+        "upper_arm_r",
+        "forearm_r",
+        "hand_r",
+        "thigh_l",
+        "calf_l",
+        "foot_l",
+        "thigh_r",
+        "calf_r",
+        "foot_r",
+    ]
+    bones = {bn["name"]: bn for bn in rig["bones"]}
+    c.check("all 14 anatomical parts produced", all(e in bones for e in expected))
+    for e in ("head", "forearm_l", "hand_r", "calf_l"):
+        bn = bones[e]
+        has = all(k in bn for k in ("parent", "pivot", "rest_rotation", "z", "confidence", "mask", "cutout"))
+        c.check(f"part {e} has parent/pivot/rest_rotation/z/confidence/mask/cutout", has, str(sorted(bn)))
+        c.check(f"part {e} mask + cutout on disk", Path(bn["mask"]).exists() and Path(bn["cutout"]).exists())
+    # No background leakage: every part mask is inside the character mask.
+    cm = list(Image.open(mp).convert("L").getdata())
+    leak = 0
+    for bn in rig["bones"]:
+        pm = list(Image.open(bn["mask"]).convert("L").getdata())
+        leak += sum(1 for pv, cv in zip(pm, cm) if pv >= 128 and cv < 128)
+    c.check("no background leakage in any part mask", leak == 0, f"leak={leak}")
+    c.check("occlusion order: forearms in front of torso", bones["forearm_l"]["z"] > bones["spine"]["z"])
+    c.check("part_quality recorded with a source + confidence", "part_quality" in rig and rig["part_quality"]["parts"])
+    c.check(
+        "offline uses geometric fallback, not raw-accepted SAM2",
+        rig["part_quality"]["refined_with_sam2"] is False,
+    )
+
+
+def _test_part_perceptual_qc(c: Collector, base: Path) -> None:
+    """Perceptual QC renders a contact sheet (rest + 3 poses) and runs structural
+    joint/leakage/occlusion checks — surfacing issues rather than rubber-stamping."""
+    from PIL import Image, ImageDraw
+
+    from .part_qc import QC_POSES, perceptual_qc
+    from .rig_builder import RigBuilder
+
+    base.mkdir(parents=True, exist_ok=True)
+    b = Image.new("RGB", (200, 360), "white")
+    dr = ImageDraw.Draw(b)
+    dr.ellipse([80, 24, 120, 74], fill=(200, 140, 100))
+    dr.rectangle([70, 74, 130, 340], fill=(80, 120, 190))
+    bp = base / "b.png"
+    b.save(bp)
+    m = Image.new("L", (200, 360), 0)
+    ImageDraw.Draw(m).rectangle([65, 24, 135, 345], fill=255)
+    mp = base / "m.png"
+    m.save(mp)
+    rig = RigBuilder({}, base).build(bp, (0.32, 0.06, 0.68, 0.96), mp, "char", is_figure=True, out_dir=base)
+    base_cut = Image.new("RGBA", (200, 360), (0, 0, 0, 0))
+    base_cut.paste(b, (0, 0), m)
+    report = perceptual_qc(rig, base_cut, base / "qc", config={})
+    c.check("QC produced a contact sheet on disk", Path(report["contact_sheet"]).exists())
+    c.check("contact sheet has rest + 3 articulated poses", len(QC_POSES) == 4)
+    for key in ("structural_ok", "issues", "part_source", "min_confidence", "failed_parts", "ok"):
+        c.check(f"QC report has '{key}'", key in report)
+    c.check("QC report ok is a boolean verdict", isinstance(report["ok"], bool))
+
+
 def _test_character_director(c: Collector, base: Path) -> None:
     """CharacterDirector authors an explicit CharacterManifest from the authored
     figure_construction (deterministic fallback), flagging requires_articulation
@@ -2051,6 +2147,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_post_render_qc(c, base / "render_qc")
     _test_rig_builder(c, base / "rig_builder")
     _test_skeletal_deform(c, base / "skeletal_deform")
+    _test_anatomical_separation(c, base / "anatomical")
+    _test_part_perceptual_qc(c, base / "part_qc")
     _test_character_director(c, base / "character_director")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")

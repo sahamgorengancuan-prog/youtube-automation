@@ -3,11 +3,11 @@
   "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 384,
+  "total_checks": 406,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (240)",
+    "finalization_tests": "PASS (262)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -35,16 +35,21 @@
     "sam2_real_install": "WIRED (setup cell installs Ultralytics SAM2 + YOLO-pose when a GPU is present / forced; validated offline via heuristic + proportional-rig fallback)",
     "character_manifest_tests": "PASS (explicit per-scene CharacterManifest from authored figure_construction; requires_articulation flagged; no narration-keyword scan)",
     "articulation_quality_gate": "PASS (pipeline fails a scene when a character requires_articulation but rig_count==0 — refuses to ship a static cutout; override allow_unrigged_characters)",
-    "rig_activation_real_topic": "PASS (offline run of 'What happens to a human body in zero gravity?' produced 3 CharacterManifests + 3 rig.json + skeletal_pose per scene + valid MP4 from the topic alone — not forced architecture)"
+    "rig_activation_real_topic": "PASS (offline run of 'What happens to a human body in zero gravity?' produced 3 CharacterManifests + 3 rig.json + skeletal_pose per scene + valid MP4 from the topic alone — not forced architecture)",
+    "anatomical_separation_tests": "PASS (14 named parts head/spine/upper_arm/forearm/hand/thigh/calf/foot L+R, each with parent/pivot/rest_rotation/z-order/confidence/mask/cutout; zero background leakage; arms occlude in front of torso)",
+    "part_perceptual_qc_tests": "PASS (contact sheet rest+3 poses + structural joint-gap/leakage/occlusion/torso-drag checks; surfaces issues rather than rubber-stamping)",
+    "anatomical_separation_real_topic": "PASS run / QC-FLAGGED offline (real zero-gravity topic emits all 14 part PNGs + cutouts + per-scene contact sheet + part_qc report; offline geometric fallback is QC-flagged for joint gaps/torso-drag and marked source=geometric conf~0.59 — NOT accepted as production output)",
+    "production_refuses_coarse_parts": "ENFORCED (execution_mode=production fails when part_source!=sam2 or QC has issues; offline/test keeps geometric as a flagged preview with warnings). SAM2 per-limb refinement is GPU-gated and unverifiable in this offline env."
   },
   "audit_response": {
     "rive": "Custom 2D cutout skeletal rig, explicitly NOT Rive (no artboard/mesh/state-machine/.riv). Real-Rive path via a pre-made human_template.riv on the Rive Web Runtime remains optional/pending.",
     "figure_detection": "Keyword figure-gate replaced by an explicit CharacterManifest (vision in production, structured figure_construction offline) + _ensure_articulation guaranteeing a skeletal_pose post-plan.",
-    "still_open": "Anatomical part separation is still coarse capsule-carving (per-limb SAM2 refinement + occlusion + clean-plate pending); Remotion skeletal executor pending (articulation is PIL-only today); perceptual animation QC pending; PixiJS / WAN / SkyReels / FLUX-hero-PNG pending."
+    "anatomical_separation": "Capsule carving removed as accepted output. AnatomicalPartSegmenter: whole-char mask + pose keypoints + per-limb SAM2 refinement (negative points exclude torso/far-limb) + joint overlap + occlusion z-order + per-part QC/retry + confidence; part_qc renders a contact sheet + structural + optional Qwen vision gate. Production refuses geometric/QC-flagged parts. SAM2 per-limb refinement is GPU-gated (unverified offline); the offline geometric preview is QC-flagged, not accepted.",
+    "still_open": "Remotion skeletal executor pending (articulation is PIL-only today; the production Remotion path does not yet articulate limbs); PixiJS / WAN / SkyReels / FLUX-hero-PNG pending. 'No gap / no torso-drag' is met by the SAM2 production path only, which needs a GPU."
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
-    "vision_review": "Two-tier via ONE OpenRouter key: Qwen VL (qwen/qwen-2.5-vl-72b-instruct) primary ~80%, escalate difficult/low-confidence cases to Gemini 2.5 Flash (google/gemini-2.5-flash) ~20% \u2014 both through OPENROUTER_API_KEY. OpenAI permitted as vision fallback. Imperfect critiques are salvaged into valid change orders instead of hard-failing.",
+    "vision_review": "Two-tier via ONE OpenRouter key: Qwen VL (qwen/qwen-2.5-vl-72b-instruct) primary ~80%, escalate difficult/low-confidence cases to Gemini 2.5 Flash (google/gemini-2.5-flash) ~20% — both through OPENROUTER_API_KEY. OpenAI permitted as vision fallback. Imperfect critiques are salvaged into valid change orders instead of hard-failing.",
     "image_generation": "BFL FLUX Kontext via BFL_API_KEY (exclusive in production)",
     "reference_motion": "Reference video motion dynamics (energy/tempo/cut-rate) measured via frame differencing and fed to the animation director so motion matches the reference's rhythm; guarded (no-op if measurement fails).",
     "anthropic_runtime_dependency": false,
@@ -54,5 +59,6 @@
     "compositing": "Per-object clean-plate compositing: moving objects removed from an inpainted background plate (OpenCV Telea or PIL bleed fallback); depth z-index preserved from grounded depth (not flattened); object-local rotate/scale about the object pivot.",
     "renderers": "PIL (deterministic/offline) and Remotion (production) consume the SAME authored DSL (events/camera/effects/captions + per-layer pivot/bbox/z). The Remotion template iterates all events per layer (not one), applies easing, transforms about the object pivot, and executes camera/effect/caption directives.",
     "post_render_qc": "Rendered causal clarity is verified from real first/last frames + the object mask: an action shot must show the object region actually change; a declared hold must not. render_verified is set from frame evidence (not JSON). Optional Qwen VL before/after gate is GPU/API-gated. Wired as a guarded pipeline pass writing 20_render_qc/*.json."
-  }
+  },
+  "finalization_tests_note": "240->262 (+22 anatomical/perceptual-QC)"
 }

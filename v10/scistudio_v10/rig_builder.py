@@ -29,7 +29,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image
 
 from .utils import ensure_dir
 
@@ -99,11 +99,16 @@ class RigBuilder:
         *,
         is_figure: bool = True,
         out_dir: str | Path | None = None,
+        segmenter: Any = None,
     ) -> dict[str, Any]:
-        """Return a rig dict: ``{object_id, source, is_figure, bbox, bones:[...]}``.
+        """Return a rig dict: ``{object_id, source, is_figure, bbox, bones:[...],
+        part_quality}``.
 
-        Each bone: ``{name, parent, pivot:[x,y], tip:[x,y], rest_angle, length,
-        z, mask}`` with normalized (0..1) coordinates in frame space.
+        Each bone: ``{name, parent, pivot, tip, rest_angle, rest_rotation,
+        length, z, mask, cutout, confidence, part_source}`` with normalized
+        (0..1) coordinates. Part masks come from the anatomical separator
+        (per-limb SAM2 refinement when available, geometric+QC otherwise) — never
+        raw capsule carving accepted blindly.
         """
         out_dir = Path(out_dir) if out_dir is not None else (self.root or Path("."))
         ensure_dir(out_dir)
@@ -129,11 +134,12 @@ class RigBuilder:
             "bbox": [round(v, 4) for v in object_bbox],
             "bones": bones,
         }
-        # Carve per-part masks from the object mask (best effort).
-        try:
-            self._carve_part_masks(rig, object_mask_path, beauty_path, out_dir)
-        except Exception:
-            pass
+        # Anatomical part separation (per-limb SAM2 refinement + occlusion order +
+        # per-part QC/retry + confidence). Replaces blind capsule carving.
+        from .part_segmentation import AnatomicalPartSegmenter
+
+        seg = segmenter if segmenter is not None else getattr(self, "_object_segmenter", None)
+        AnatomicalPartSegmenter(self.config, out_dir, seg).separate(beauty_path, object_mask_path, rig, out_dir)
         return rig
 
     # -- pose backend -------------------------------------------------------
@@ -288,59 +294,3 @@ class RigBuilder:
                 }
             ],
         }
-
-    # -- part mask carving --------------------------------------------------
-    def _carve_part_masks(
-        self,
-        rig: dict[str, Any],
-        object_mask_path: str | Path | None,
-        beauty_path: str | Path,
-        out_dir: Path,
-    ) -> None:
-        """Split the object mask into per-bone masks: object_mask ∩ capsule(bone)."""
-        if object_mask_path and Path(object_mask_path).exists():
-            base = Image.open(object_mask_path).convert("L")
-        else:
-            # No object mask: use the whole bbox as the silhouette.
-            beauty = Image.open(beauty_path).convert("RGB")
-            base = Image.new("L", beauty.size, 0)
-            d = ImageDraw.Draw(base)
-            x0, y0, x1, y1 = rig["bbox"]
-            d.rectangle(
-                [x0 * base.width, y0 * base.height, x1 * base.width, y1 * base.height],
-                fill=255,
-            )
-        width, height = base.size
-        # Radius of the limb capsule as a fraction of the bbox width.
-        bx0, by0, bx1, by1 = rig["bbox"]
-        span = max(1e-3, (bx1 - bx0)) * width
-        radius = max(4.0, span * float(self.config.get("rig_limb_radius", 0.16)))
-        head_radius = max(6.0, span * float(self.config.get("rig_head_radius", 0.28)))
-        for bone in rig["bones"]:
-            cap = Image.new("L", (width, height), 0)
-            d = ImageDraw.Draw(cap)
-            px0, py0 = bone["pivot"][0] * width, bone["pivot"][1] * height
-            px1, py1 = bone["tip"][0] * width, bone["tip"][1] * height
-            r = head_radius if bone["name"] == "head" else radius
-            _draw_capsule(d, px0, py0, px1, py1, r)
-            part = Image.new("L", (width, height), 0)
-            part.paste(base, (0, 0), cap.point(lambda p: 255 if p else 0))
-            part = part.filter(ImageFilter.MaxFilter(3))
-            mask_path = out_dir / f"{rig['object_id']}_{bone['name']}.png"
-            part.point(lambda p: 255 if p >= 128 else 0).save(mask_path)
-            bone["mask"] = str(mask_path)
-
-
-def _draw_capsule(draw: ImageDraw.ImageDraw, x0: float, y0: float, x1: float, y1: float, r: float) -> None:
-    """Fill a capsule (stadium) between two points with radius ``r``."""
-    draw.ellipse([x0 - r, y0 - r, x0 + r, y0 + r], fill=255)
-    draw.ellipse([x1 - r, y1 - r, x1 + r, y1 + r], fill=255)
-    dx, dy = x1 - x0, y1 - y0
-    length = math.hypot(dx, dy)
-    if length < 1e-4:
-        return
-    nx, ny = -dy / length * r, dx / length * r
-    draw.polygon(
-        [(x0 + nx, y0 + ny), (x1 + nx, y1 + ny), (x1 - nx, y1 - ny), (x0 - nx, y0 - ny)],
-        fill=255,
-    )
