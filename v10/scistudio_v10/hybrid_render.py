@@ -343,6 +343,7 @@ class RemotionHybridExporter:
                     "remotion": "4.0.489",
                     "react": "19.0.0",
                     "react-dom": "19.0.0",
+                    "pixi.js": "7.4.2",
                 },
                 "devDependencies": {
                     "typescript": "5.6.3",
@@ -376,6 +377,7 @@ class RemotionHybridExporter:
         # camera / effect / caption directives — renderer parity with PIL.
         return r"""import React from 'react';
 import {AbsoluteFill, Composition, Html5Audio, Img, OffthreadVideo, Sequence, interpolate, registerRoot, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import * as PIXI from 'pixi.js';
 import data from '../public/data.json';
 
 const ease=(t:number,kind:string)=>{t=Math.max(0,Math.min(1,t));if(kind==='ease_in_out'||kind==='smooth'||kind==='ease-in-out')return t*t*(3-2*t);if(kind==='ease_in')return t*t;if(kind==='ease_out')return 1-(1-t)*(1-t);return t;};
@@ -409,10 +411,59 @@ const cameraStyle=(scene:any,frame:number,total:number)=>{
   return {transform:`translate(${tx}%,${ty}%) scale(${scale})`,transformOrigin:'center'};
 };
 
-const Particles=({scene,frame,total}:any)=>{
+// Fallback CSS-div particles (used only if PixiJS fails to initialise).
+const DivParticles=({scene,frame,total}:any)=>{
   const fx=(scene.animation.effects||[]).filter((e:any)=>e.effect&&e.effect!=='none'&&(e.intensity>0)&&win(e,frame,total)!==null);
   if(!fx.length) return null;
   return <>{fx.map((e:any,fi:number)=>{const [x0,y0,x1,y1]=e.region||[0,0,1,1];const n=Math.min(220,Math.max(8,Math.floor((e.intensity||0.5)*120)));const dir=(e.direction_deg??90)*Math.PI/180;const items=[];for(let i=0;i<n;i++){const ph=((frame*0.02*(0.6+((i*97)%100)/100))%1);const u=((i*53)%100/100+Math.cos(dir)*ph)%1;const v=((i*31)%100/100+Math.sin(dir)*ph)%1;const px=(x0+u*(x1-x0))*100, py=(y0+v*(y1-y0))*100;items.push(<div key={i} style={{position:'absolute',left:`${px}%`,top:`${py}%`,width:e.effect==='rain'||e.effect==='water'?2:5,height:e.effect==='rain'||e.effect==='water'?18:5,borderRadius:e.effect==='snow'||e.effect==='bubble'?'50%':1,background:e.effect==='spark'?'rgba(255,176,92,0.8)':'rgba(205,222,238,0.6)'}}/>);}return <div key={fi} style={{position:'absolute',inset:0,zIndex:80}}>{items}</div>;})}</>;
+};
+
+// Real PixiJS particle engine + displacement (water) shader. autoDetectRenderer
+// uses WebGL when available and falls back to canvas, so it renders in headless
+// Chrome; if PIXI cannot initialise at all, we fall back to DivParticles. Motion
+// is deterministic from the frame number so every render is reproducible.
+const colorFor=(fx:string)=>fx==='spark'?0xffb05c:(fx==='snow'||fx==='bubble')?0xffffff:(fx==='dust')?0xd8c9a8:0xcddeee;
+const PixiEffects=({scene,frame,total,width,height}:any)=>{
+  const fx=(scene.animation.effects||[]).filter((e:any)=>e.effect&&e.effect!=='none'&&(e.intensity>0)&&win(e,frame,total)!==null);
+  const canvasRef=React.useRef<HTMLCanvasElement>(null);
+  const rref=React.useRef<any>(null);
+  const dispRef=React.useRef<any>(null);
+  const [failed,setFailed]=React.useState(false);
+  React.useEffect(()=>{
+    try{ if(canvasRef.current&&!rref.current){ rref.current=(PIXI as any).autoDetectRenderer({width,height,view:canvasRef.current,backgroundAlpha:0,antialias:true}); } }
+    catch(e){ setFailed(true); }
+  },[]);
+  React.useEffect(()=>{
+    const r=rref.current; if(!r||!fx.length) return;
+    try{
+      const stage=new (PIXI as any).Container();
+      const g=new (PIXI as any).Graphics();
+      let water=false;
+      for(const e of fx){ if(e.effect==='water'||e.effect==='wind') water=true; const [x0,y0,x1,y1]=e.region||[0,0,1,1];
+        const n=Math.min(500,Math.max(20,Math.floor((e.intensity||0.5)*300))); const dir=(e.direction_deg??90)*Math.PI/180; const col=colorFor(e.effect);
+        for(let i=0;i<n;i++){ const sp=0.4+((i*37)%100)/100; const ph=((frame*0.02*sp)%1);
+          const u=(((i*53)%100/100)+Math.cos(dir)*ph+1)%1; const v=(((i*31)%100/100)+Math.sin(dir)*ph+1)%1;
+          const px=(x0+u*(x1-x0))*width, py=(y0+v*(y1-y0))*height;
+          g.beginFill(col,0.65);
+          if(e.effect==='rain'||e.effect==='water'){ g.drawRect(px,py,1.6,9); }
+          else if(e.effect==='snow'||e.effect==='bubble'){ g.drawCircle(px,py,2.4); }
+          else { g.drawCircle(px,py,1.8); }
+          g.endFill();
+        }
+      }
+      stage.addChild(g);
+      // Water/wind shimmer via a real displacement-map shader (GPU when WebGL).
+      if(water){ try{
+        if(!dispRef.current){ const dm=new (PIXI as any).Graphics(); for(let i=0;i<40;i++){dm.beginFill(((i*97)%255)<<16|((i*53)%255)<<8|((i*31)%255));dm.drawRect((i*53)%width,(i*29)%height,24,24);dm.endFill();} dispRef.current=new (PIXI as any).Sprite(r.generateTexture(dm)); dispRef.current.texture.baseTexture.wrapMode=(PIXI as any).WRAP_MODES?.REPEAT??10497; }
+        const ds=dispRef.current; ds.x=(frame*2)%width; ds.y=(frame*1)%height;
+        const df=new (PIXI as any).DisplacementFilter(ds,10); stage.addChild(ds); stage.filters=[df];
+      }catch(_e){} }
+      r.render(stage); stage.destroy({children:true});
+    }catch(e){ setFailed(true); }
+  });
+  if(!fx.length) return null;
+  if(failed) return <DivParticles scene={scene} frame={frame} total={total}/>;
+  return <canvas ref={canvasRef} width={width} height={height} style={{position:'absolute',inset:0,width,height,zIndex:82}}/>;
 };
 
 const Captions=({scene,frame,total,width,height}:any)=>{
@@ -453,7 +504,7 @@ const SceneView=({scene}:any)=>{
         ? <OffthreadVideo key={layer.layer_id} src={staticFile(st.source)} muted style={{position:'absolute',inset:0,width,height,objectFit:'fill',zIndex:layer.z_index}}/>
         : <Img key={layer.layer_id} src={staticFile(st.source)} style={{position:'absolute',inset:0,width,height,objectFit:'fill',zIndex:layer.z_index,opacity:st.opacity,transform:st.transform,transformOrigin:`${pv[0]*100}% ${pv[1]*100}%`}}/>;
     })}
-    <Particles scene={scene} frame={frame} total={total}/>
+    <PixiEffects scene={scene} frame={frame} total={total} width={width} height={height}/>
     <Captions scene={scene} frame={frame} total={total} width={width} height={height}/>
     {scene.voice_path?<Html5Audio src={staticFile(scene.voice_path)} volume={1}/>:null}
   </AbsoluteFill>;
