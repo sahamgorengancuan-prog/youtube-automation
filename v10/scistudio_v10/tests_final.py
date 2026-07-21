@@ -1634,6 +1634,55 @@ def _test_part_perceptual_qc(c: Collector, base: Path) -> None:
     c.check("limb-length/tearing area_spread is measured (0..1)", 0.0 <= report["area_spread"] <= 1.0)
 
 
+def _test_video_temporal_backends(c: Collector, base: Path) -> None:
+    """WAN 2.2 / SkyReels-V2 backends are real diffusers adapters, honestly gated:
+    unavailable without a GPU, built only when enabled, and the router falls back
+    to the deterministic compositor offline (organic motion is never faked)."""
+    from PIL import Image
+
+    from .schemas import TemporalRequest
+    from .temporal_backends import DeterministicCompositorBackend, TemporalBackendRouter
+    from .temporal_video_models import SkyReelsVideoBackend, WanVideoBackend, build_video_backends
+
+    base.mkdir(parents=True, exist_ok=True)
+    wan = WanVideoBackend({"enable": True}, base / "w")
+    sky = SkyReelsVideoBackend({"enable": True}, base / "s")
+    c.check(
+        "WAN backend id + real pipeline symbol",
+        wan.backend_id == "wan-2.2-i2v" and wan.pipeline_symbol == "WanImageToVideoPipeline",
+    )
+    c.check(
+        "SkyReels backend id + real pipeline symbol",
+        sky.backend_id == "skyreels-v2-i2v" and "SkyReelsV2" in sky.pipeline_symbol,
+    )
+    c.check("video backends unavailable without a GPU", wan.available() is False and sky.available() is False)
+    c.check(
+        "disabled config builds no video backends", build_video_backends({"temporal": {}}, base, "production") == []
+    )
+    built = build_video_backends(
+        {"temporal": {"wan": {"enable": True}, "skyreels": {"enable": True}}}, base, "production"
+    )
+    c.check("enabled config builds both backends", {b.backend_id for b in built} == {"wan-2.2-i2v", "skyreels-v2-i2v"})
+
+    bp = base / "b.png"
+    Image.new("RGB", (64, 64), "blue").save(bp)
+    router = TemporalBackendRouter(built + [DeterministicCompositorBackend(base / "det")], base / "res")
+    req = TemporalRequest(
+        scene_id="S01",
+        backend_preference=["wan-2.2-i2v", "deterministic-compositor"],
+        beauty_start=str(bp),
+        beauty_end=str(bp),
+        duration_frames=12,
+        fps=12,
+        complexity="articulated",
+        output_path=str(base / "out.mp4"),
+    )
+    res = router.generate(req)
+    c.check(
+        "router falls back to deterministic when video models unavailable", res.backend_id == "deterministic-compositor"
+    )
+
+
 def _test_character_director(c: Collector, base: Path) -> None:
     """CharacterDirector authors an explicit CharacterManifest from the authored
     figure_construction (deterministic fallback), flagging requires_articulation
@@ -2150,6 +2199,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_skeletal_deform(c, base / "skeletal_deform")
     _test_anatomical_separation(c, base / "anatomical")
     _test_part_perceptual_qc(c, base / "part_qc")
+    _test_video_temporal_backends(c, base / "video_temporal")
     _test_character_director(c, base / "character_director")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
