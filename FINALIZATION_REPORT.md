@@ -377,22 +377,63 @@ delivery format, not a feature ceiling. This addendum tracks honest status.
   works and is testable with no GPU. Non-figures get a single-root rig (motion
   degrades to whole-object).
 
-* **Skeletal deformation = the Rive goal without `.riv` (audit #4 → PIL done,
-  Remotion pending).** `.riv` is a binary authored only in the Rive editor, so
-  rather than fake it, `skeletal_deform.py` implements the equivalent: the
-  director *authors* a per-bone pose (named gesture or explicit angle deltas) on
-  a `skeletal_pose` motion event, and the deformer executes it by forward
-  kinematics — each body part rotates about its joint, children following
-  parents. The renderer invents nothing; an unknown/empty pose holds the
-  character still. Wired end-to-end on the **PIL** path: architecture-with-figure
-  → director authors `skeletal_pose` → `hybrid_package` builds+attaches the rig
-  and persists `<obj>_rig.json` → PIL render articulates the body in the MP4
-  (validated: 14-bone rig, ~4 % of pixels articulate rest→pose). The **Remotion**
-  JS forward-kinematics executor is the next increment; until then the production
-  Remotion path renders the character cutout without limb articulation (an
-  explicit, documented parity gap for this one representation).
+* **Custom 2D cutout skeletal rig — NOT Rive (audit #4 → PIL done, Remotion
+  pending).** Correction to an earlier overstatement: this is a *custom
+  articulated 2D rig* (PNG part cutouts rotated about pivots by forward
+  kinematics), **not** Rive, and it does not satisfy a "Rive" requirement — there
+  is no artboard, bone/mesh skin deformation, constraint or state machine, and no
+  `.riv` is read or written. On Rive specifically: `.riv` is a binary exported
+  from the Rive Editor; there is no practical external Python/Colab API to
+  synthesize a whole rig `.riv`, but Colab *can* run the Rive Web Runtime, load a
+  pre-made `human_template.riv`, drive its state machine and swap image assets —
+  so a real-Rive path via a template is possible and remains optional/tracked
+  separately. What is implemented: `skeletal_deform.py` executes an *authored*
+  per-bone pose (named gesture or explicit angle deltas) on a `skeletal_pose`
+  motion event; the deformer invents nothing (unknown/empty pose holds still).
+  Wired end-to-end on the **PIL** path only. The **Remotion** JS forward-kinematics
+  executor is pending, so the production Remotion path still renders the character
+  cutout without limb articulation — an explicit, documented parity gap.
+
+### Increment 2 — explicit CharacterManifest + hard quality gate (done)
+
+The previous increment's rig never activated on a normal run: figure detection
+was a brittle narration-keyword gate, and the offline LLM stub's plan bypassed
+the fallback that authored the pose. Both are fixed:
+
+* **CharacterManifest (`character_director.py`).** An explicit per-scene contract
+  — `characters:[{character_id, present, bbox, body_orientation,
+  requires_articulation, pose_intent}]`. Production authors it from the beauty
+  frame with a VL model (Qwen via the router); offline derives it from the
+  architecture's authored `figure_construction` (structured data), not a keyword
+  scan.
+* **Articulation is guaranteed post-plan.** `AnimationDirector._ensure_articulation`
+  runs after the plan is built (whether it came from the LLM or the fallback):
+  for every character with `requires_articulation`, it guarantees a
+  `skeletal_pose` on that character's figure layer (matched by bbox overlap).
+  This is what makes the rig activate on a real run rather than only on
+  hand-forced architecture.
+* **Hard quality gate (pipeline).** After packaging each scene: if a character
+  `requires_articulation` but `rig_count == 0`, the run **fails** with a clear
+  error rather than shipping a static cutout (override:
+  `allow_unrigged_characters`).
+* **Proven on a real topic (not forced input).** The offline pipeline run for
+  *"What happens to a human body in zero gravity?"* produced, from the topic
+  alone: 3 CharacterManifests (`requires_articulation=true`), 3 `*_rig.json`
+  (14-bone rigs), a `skeletal_pose` on every scene, and a valid H.264 MP4, with
+  the quality gate satisfied (`rig_count=3`). This is `topic → storyboard →
+  architecture → CharacterManifest → rig → animation DSL → render`, end to end.
 
 ### Still open (honest status, being built next)
+
+* **Anatomical part separation is still coarse (audit #4b).** Part masks are
+  carved from the single character mask via bone capsules — good enough to move,
+  but it can leave seams at elbows/knees and does not do per-limb SAM2 refinement,
+  occlusion ordering or clothing/hair handling. Whole-char SAM2 + pose keypoints +
+  per-limb refinement + clean-plate is the planned upgrade.
+* **Perceptual animation QC is absent.** Pixel-change % and passing tests prove
+  the function ran, not that joints look natural, limb length is stable, or the
+  pose matches the narration. A perceptual QC gate (no gaps at shoulder/elbow/knee,
+  stable limb length, correct z-order, no tearing) is still to be built.
 
 * **PixiJS (audit #5)** — real GPU particle/shader layer in the Remotion render
   (npm `pixi.js`): not yet present; current particles are PIL / React-div.

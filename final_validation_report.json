@@ -3,11 +3,11 @@
   "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 378,
+  "total_checks": 384,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (234)",
+    "finalization_tests": "PASS (240)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -32,7 +32,15 @@
     "rig_builder_tests": "PASS (anatomical bone hierarchy head/spine/arm/forearm/hand/thigh/calf/foot with parent chain + carved per-part masks; deterministic humanoid fallback; single-root prop rig)",
     "skeletal_deform_tests": "PASS (forward-kinematics executor of an authored per-bone pose; visible articulation rest->pose; unknown/empty pose holds still — no invented motion)",
     "skeletal_chain_e2e": "PASS (linear/src: figure architecture -> director authors skeletal_pose -> hybrid_package builds+attaches 14-bone rig + persists rig.json -> PIL render articulates the body in the MP4)",
-    "sam2_real_install": "WIRED (setup cell installs Ultralytics SAM2 + YOLO-pose when a GPU is present / forced; validated offline via heuristic + proportional-rig fallback)"
+    "sam2_real_install": "WIRED (setup cell installs Ultralytics SAM2 + YOLO-pose when a GPU is present / forced; validated offline via heuristic + proportional-rig fallback)",
+    "character_manifest_tests": "PASS (explicit per-scene CharacterManifest from authored figure_construction; requires_articulation flagged; no narration-keyword scan)",
+    "articulation_quality_gate": "PASS (pipeline fails a scene when a character requires_articulation but rig_count==0 — refuses to ship a static cutout; override allow_unrigged_characters)",
+    "rig_activation_real_topic": "PASS (offline run of 'What happens to a human body in zero gravity?' produced 3 CharacterManifests + 3 rig.json + skeletal_pose per scene + valid MP4 from the topic alone — not forced architecture)"
+  },
+  "audit_response": {
+    "rive": "Custom 2D cutout skeletal rig, explicitly NOT Rive (no artboard/mesh/state-machine/.riv). Real-Rive path via a pre-made human_template.riv on the Rive Web Runtime remains optional/pending.",
+    "figure_detection": "Keyword figure-gate replaced by an explicit CharacterManifest (vision in production, structured figure_construction offline) + _ensure_articulation guaranteeing a skeletal_pose post-plan.",
+    "still_open": "Anatomical part separation is still coarse capsule-carving (per-limb SAM2 refinement + occlusion + clean-plate pending); Remotion skeletal executor pending (articulation is PIL-only today); perceptual animation QC pending; PixiJS / WAN / SkyReels / FLUX-hero-PNG pending."
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",

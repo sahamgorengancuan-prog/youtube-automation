@@ -807,6 +807,31 @@ class SemanticLayerContract(OpenModel):
     extraction_notes: list[str] = Field(default_factory=list)
 
 
+class Character(OpenModel):
+    """A character the director declares in a scene. ``requires_articulation`` is
+    the explicit contract that drives the rig + quality gate: if it is True and no
+    rig is built for the scene, the pipeline fails rather than shipping a static
+    paper cutout."""
+
+    character_id: str
+    present: bool = True
+    bbox: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
+    body_orientation: str = "front_three_quarter"
+    requires_articulation: bool = False
+    pose_intent: str = ""
+
+
+class CharacterManifest(OpenModel):
+    """Explicit per-scene character contract authored by the CharacterDirector.
+    Replaces narration-keyword figure guessing: production authors it from the
+    beauty frame (vision), offline derives it from the architecture's authored
+    figure_construction."""
+
+    scene_id: str
+    grounding_source: str = "deterministic-fallback"
+    characters: list[Character] = Field(default_factory=list)
+
+
 class MotionEvent(OpenModel):
     event_id: str
     reason_id: str

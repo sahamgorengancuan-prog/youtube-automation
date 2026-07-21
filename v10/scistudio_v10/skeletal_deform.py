@@ -1,17 +1,23 @@
-"""Skeletal deformation — execute an authored pose over a rigged character.
+"""Skeletal deformation — a **custom 2D cutout skeletal rig**, NOT Rive.
 
-This is the "articulated rig + controlled deformation" engine. Rive ``.riv``
-files can only be authored in the Rive editor (there is no API to synthesize the
-binary format from a rig), so instead of pretending to emit ``.riv`` we implement
-the equivalent: the :class:`~scistudio_v10.rig_builder.RigBuilder` produces a bone
-hierarchy with per-part masks, the director *authors* a pose (per-bone angle
-deltas), and this module executes it by forward kinematics — each body part is a
-cutout of the beauty frame that rotates about its joint, children following their
-parents. The renderer never invents the pose; it only plays the authored one.
+Be precise about what this is and is not: it is a custom articulated 2D rig —
+PNG body-part cutouts rotated about pivots by forward kinematics. It is **not**
+Rive: there is no artboard, no bone/mesh skin deformation, no constraints and no
+state machine, and it does not read or write ``.riv``. It does not claim to
+satisfy a "Rive" requirement.
 
-Everything is deterministic and GPU-free: it operates on PIL images and the rig
-dict, so the offline preview shows the same articulation the production Remotion
-render will (once the JS executor consumes the same rig + pose).
+On Rive specifically: ``.riv`` is a binary artboard/animation/state-machine
+exported from the Rive Editor. There is no practical external Python/Colab API to
+synthesize a whole rig ``.riv`` from a notebook, but Colab *can* run the Rive Web
+Runtime, load a pre-made ``human_template.riv``, drive its state machine and swap
+image assets at runtime. So a real-Rive path is possible via a template — it is
+tracked separately and is not what this module provides.
+
+What this module does: the :class:`~scistudio_v10.rig_builder.RigBuilder` builds a
+bone hierarchy with per-part masks, the character/animation director *authors* a
+pose (per-bone angle deltas), and this executes it by forward kinematics — each
+part rotates about its joint, children following parents. The renderer never
+invents the pose; it plays the authored one. Deterministic and GPU-free.
 """
 
 from __future__ import annotations

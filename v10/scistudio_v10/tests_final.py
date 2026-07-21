@@ -1537,6 +1537,33 @@ def _test_skeletal_deform(c: Collector, base: Path) -> None:
     c.check("skeletal deform produces visible articulation rest->pose", changed > 200, f"changed={changed}")
 
 
+def _test_character_director(c: Collector, base: Path) -> None:
+    """CharacterDirector authors an explicit CharacterManifest from the authored
+    figure_construction (deterministic fallback), flagging requires_articulation
+    so the downstream quality gate can enforce a rig. No narration keyword scan."""
+    from types import SimpleNamespace
+
+    from .character_director import CharacterDirector
+
+    arch_with = SimpleNamespace(
+        figure_construction=[SimpleNamespace(figure_id="scientist_01", body_orientation="front_three_quarter")]
+    )
+    cd = CharacterDirector(None, {}, base)  # llm=None -> deterministic fallback
+    manifest = cd.author("S01", arch_with, None)
+    c.check("manifest uses the deterministic fallback", manifest.grounding_source == "deterministic-fallback")
+    c.check("a declared figure becomes a character", len(manifest.characters) == 1)
+    char = manifest.characters[0]
+    c.check("character id carried from figure", char.character_id == "scientist_01")
+    c.check("declared figure requires articulation", char.requires_articulation is True)
+    c.check(
+        "character bbox is normalized and non-degenerate", char.bbox[2] > char.bbox[0] and char.bbox[3] > char.bbox[1]
+    )
+
+    arch_none = SimpleNamespace(figure_construction=[])
+    empty = cd.author("S02", arch_none, None)
+    c.check("no figure -> no character (no articulation required)", empty.characters == [])
+
+
 def _test_flat_explainer_style(c: Collector) -> None:
     """Art direction must steer flat vector explainer, not painterly ink."""
     from .schemas import HardCodedStyleCanon
@@ -2024,6 +2051,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_post_render_qc(c, base / "render_qc")
     _test_rig_builder(c, base / "rig_builder")
     _test_skeletal_deform(c, base / "skeletal_deform")
+    _test_character_director(c, base / "character_director")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")
