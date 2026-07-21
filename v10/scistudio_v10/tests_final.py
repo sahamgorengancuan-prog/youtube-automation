@@ -1466,6 +1466,77 @@ def _test_clean_plate(c: Collector, base: Path) -> None:
     )
 
 
+def _test_rig_builder(c: Collector, base: Path) -> None:
+    """RigBuilder produces an anatomical bone hierarchy with per-part masks from
+    the deterministic fallback (no pose model), and a trivial root rig for props."""
+    from PIL import Image, ImageDraw
+
+    from .rig_builder import BONE_CHAIN, RigBuilder
+
+    base.mkdir(parents=True, exist_ok=True)
+    beauty = base / "beauty.png"
+    Image.new("RGB", (180, 320), "white").save(beauty)
+    mask = Image.new("L", (180, 320), 0)
+    ImageDraw.Draw(mask).ellipse([50, 40, 130, 300], fill=255)
+    mask_path = base / "mask.png"
+    mask.save(mask_path)
+
+    rb = RigBuilder({}, base)
+    rig = rb.build(beauty, (0.28, 0.10, 0.72, 0.98), mask_path, "char", is_figure=True, out_dir=base)
+    c.check("rig falls back without a pose model", rig["source"] == "fallback")
+    names = {b["name"] for b in rig["bones"]}
+    for anatomical in ("head", "spine", "upper_arm_l", "forearm_r", "hand_l", "thigh_r", "calf_l", "foot_r"):
+        c.check(f"rig has anatomical bone {anatomical}", anatomical in names)
+    c.check("rig bone count matches the canonical chain", len(rig["bones"]) == len(BONE_CHAIN))
+    parents = {b["name"]: b["parent"] for b in rig["bones"]}
+    c.check("forearm parents the upper arm", parents["forearm_l"] == "upper_arm_l")
+    c.check("hand parents the forearm", parents["hand_r"] == "forearm_r")
+    c.check("every bone has a carved part mask", all(b["mask"] and Path(b["mask"]).exists() for b in rig["bones"]))
+    prop = rb.build(beauty, (0.4, 0.4, 0.6, 0.6), None, "planet", is_figure=False, out_dir=base)
+    c.check("prop gets a single root bone", prop["source"] == "prop" and len(prop["bones"]) == 1)
+
+
+def _test_skeletal_deform(c: Collector, base: Path) -> None:
+    """The deformer executes an authored pose (per-bone angle deltas) via forward
+    kinematics and produces a visibly different frame at rest vs. full pose. It
+    invents nothing: an unknown/empty pose holds the character still."""
+    from PIL import Image, ImageChops, ImageDraw
+
+    from .rig_builder import RigBuilder
+    from .skeletal_deform import GESTURE_LIBRARY, SkeletalDeformer, resolve_pose
+
+    base.mkdir(parents=True, exist_ok=True)
+    beauty = Image.new("RGB", (180, 320), "white")
+    d = ImageDraw.Draw(beauty)
+    d.ellipse([60, 20, 120, 80], fill=(200, 120, 80))
+    d.rectangle([50, 80, 130, 220], fill=(80, 120, 200))
+    bpath = base / "b.png"
+    beauty.save(bpath)
+    mask = Image.new("L", (180, 320), 0)
+    md = ImageDraw.Draw(mask)
+    md.ellipse([60, 20, 120, 80], fill=255)
+    md.rectangle([50, 80, 130, 220], fill=255)
+    mpath = base / "m.png"
+    mask.save(mpath)
+
+    rig = RigBuilder({}, base).build(bpath, (0.28, 0.06, 0.72, 0.72), mpath, "char", is_figure=True, out_dir=base)
+    part_masks = {b["name"]: Image.open(b["mask"]).convert("L") for b in rig["bones"] if b["mask"]}
+    cutout = Image.new("RGBA", (180, 320), (0, 0, 0, 0))
+    cutout.paste(beauty, (0, 0), mask)
+
+    deformer = SkeletalDeformer({})
+    c.check("named gesture resolves to authored bone deltas", bool(resolve_pose({"pose": "wave"})))
+    c.check("explicit bones authored are honoured", resolve_pose({"bones": {"head": 10}}) == {"head": 10.0})
+    c.check("unknown pose resolves to empty (no invented motion)", resolve_pose({"pose": "nope"}) == {})
+
+    pose = GESTURE_LIBRARY["wave"]
+    f_rest = deformer.deform(cutout, rig, part_masks, pose, 0.0)
+    f_full = deformer.deform(cutout, rig, part_masks, pose, 1.0)
+    diff = ImageChops.difference(f_rest.convert("L"), f_full.convert("L"))
+    changed = sum(1 for p in diff.getdata() if p > 10)
+    c.check("skeletal deform produces visible articulation rest->pose", changed > 200, f"changed={changed}")
+
+
 def _test_flat_explainer_style(c: Collector) -> None:
     """Art direction must steer flat vector explainer, not painterly ink."""
     from .schemas import HardCodedStyleCanon
@@ -1951,6 +2022,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_clean_plate(c, base / "clean_plate")
     _test_renderer_parity(c, base / "parity")
     _test_post_render_qc(c, base / "render_qc")
+    _test_rig_builder(c, base / "rig_builder")
+    _test_skeletal_deform(c, base / "skeletal_deform")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
     _test_e2e_offline(c, base / "e2e")

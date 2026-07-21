@@ -350,3 +350,64 @@ fallbacks are validated to behave correctly — including the honest negative
 result: on the static deterministic path, post-render QC correctly reports
 `render_verified=False`, proving the gate catches a render that did not move the
 object rather than rubber-stamping it. Version: package **10.2.0**.
+
+## 13. Addendum — target-stack audit response (articulated motion, 10.3.0-dev)
+
+An operator audit found the previous "all features" claim overstated: of the
+requested stack (FLUX object PNG, SAM2, Rig Builder, Rive, PixiJS, Remotion,
+WAN 2.2 / SkyReels), several were absent or partial. That claim was wrong. The
+stack is now being closed in real, validated increments — "linear" is the
+delivery format, not a feature ceiling. This addendum tracks honest status.
+
+### Increment 1 — real segmentation install + articulated Rig Builder (done)
+
+* **SAM2 real install (audit #2 → wired).** The linear setup cell now installs
+  Ultralytics (SAM2 + YOLO-pose) when a GPU is present (`INSTALL_VISION_MODELS =
+  "auto"`, or forced), prefetching `sam2_b.pt` / `yolov8n-pose.pt` so the first
+  run does not stall mid-pipeline. Install failure is non-fatal (falls back to
+  the heuristic segmenter / proportional rig). Previously the cell installed only
+  pydantic/Pillow/requests/openai, so SAM2 could never load on a fresh runtime.
+
+* **Rig Builder (audit #3 → done).** New `rig_builder.py` produces an articulated
+  anatomical skeleton — head, spine, upper-arm, forearm, hand, thigh, calf, foot
+  (14 bones) with a correct parent chain, per-bone pivots, and per-part masks
+  carved (capsule ∩ object mask) from the object's own silhouette. Pose backend:
+  Ultralytics YOLO-pose (COCO-17 keypoints → bones). Deterministic fallback: a
+  canonical humanoid laid out by proportion inside the object bbox — so rigging
+  works and is testable with no GPU. Non-figures get a single-root rig (motion
+  degrades to whole-object).
+
+* **Skeletal deformation = the Rive goal without `.riv` (audit #4 → PIL done,
+  Remotion pending).** `.riv` is a binary authored only in the Rive editor, so
+  rather than fake it, `skeletal_deform.py` implements the equivalent: the
+  director *authors* a per-bone pose (named gesture or explicit angle deltas) on
+  a `skeletal_pose` motion event, and the deformer executes it by forward
+  kinematics — each body part rotates about its joint, children following
+  parents. The renderer invents nothing; an unknown/empty pose holds the
+  character still. Wired end-to-end on the **PIL** path: architecture-with-figure
+  → director authors `skeletal_pose` → `hybrid_package` builds+attaches the rig
+  and persists `<obj>_rig.json` → PIL render articulates the body in the MP4
+  (validated: 14-bone rig, ~4 % of pixels articulate rest→pose). The **Remotion**
+  JS forward-kinematics executor is the next increment; until then the production
+  Remotion path renders the character cutout without limb articulation (an
+  explicit, documented parity gap for this one representation).
+
+### Still open (honest status, being built next)
+
+* **PixiJS (audit #5)** — real GPU particle/shader layer in the Remotion render
+  (npm `pixi.js`): not yet present; current particles are PIL / React-div.
+* **Remotion as default (audit #6)** — exporter is complete; default backend is
+  still PIL. Making Remotion the auto-selected default (with a Node/npm install
+  step) is pending.
+* **WAN 2.2 / SkyReels (audit #7)** — only a generic external temporal adapter
+  exists; the diffusers install + model invocation + GPU-memory management are
+  pending. These need a large-GPU runtime and cannot be validated in this
+  offline environment — they will be wired with honest GPU-gating.
+* **FLUX separate object PNG (audit #1)** — object PNGs remain mask-cutouts of
+  the one beauty frame (best pixel/identity consistency); an opt-in path for
+  FLUX to generate an isolated hero-object PNG is pending.
+
+Unit tests `_test_rig_builder` and `_test_skeletal_deform` cover the new modules
+in the aggregate suite; the end-to-end figure→rig→articulated-render chain is
+validated against `linear/src`. Nothing here adds a new production reasoning or
+image provider: reasoning stays OpenAI-only, images stay BFL-only.

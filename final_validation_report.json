@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-07-20T08:00:00+00:00",
-  "package_version": "10.2.0",
+  "generated_at": "2026-07-21T00:00:00+00:00",
+  "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 360,
+  "total_checks": 378,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (216)",
+    "finalization_tests": "PASS (234)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -28,7 +28,11 @@
     "mask_quality_gate_tests": "PASS (rejects empty/near-full/bbox-mismatch/duplicate; retry then QC)",
     "clean_plate_tests": "PASS (inpainted background plate; object removed, not a hole)",
     "renderer_parity_tests": "PASS (Remotion interprets full DSL: all reps, all events per layer, easing, camera/effects/captions, pivot)",
-    "post_render_qc_tests": "PASS (verifies rendered object change; static render fails action-shot QC; declared hold verified)"
+    "post_render_qc_tests": "PASS (verifies rendered object change; static render fails action-shot QC; declared hold verified)",
+    "rig_builder_tests": "PASS (anatomical bone hierarchy head/spine/arm/forearm/hand/thigh/calf/foot with parent chain + carved per-part masks; deterministic humanoid fallback; single-root prop rig)",
+    "skeletal_deform_tests": "PASS (forward-kinematics executor of an authored per-bone pose; visible articulation rest->pose; unknown/empty pose holds still — no invented motion)",
+    "skeletal_chain_e2e": "PASS (linear/src: figure architecture -> director authors skeletal_pose -> hybrid_package builds+attaches 14-bone rig + persists rig.json -> PIL render articulates the body in the MP4)",
+    "sam2_real_install": "WIRED (setup cell installs Ultralytics SAM2 + YOLO-pose when a GPU is present / forced; validated offline via heuristic + proportional-rig fallback)"
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
