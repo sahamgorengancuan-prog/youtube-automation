@@ -1634,6 +1634,113 @@ def _test_part_perceptual_qc(c: Collector, base: Path) -> None:
     c.check("limb-length/tearing area_spread is measured (0..1)", 0.0 <= report["area_spread"] <= 1.0)
 
 
+def _test_artifact_graph_p1(c: Collector, base: Path) -> None:
+    """P1 acceptance: the artifact DAG gives dependency-aware deterministic
+    recovery — the five scenarios the operator specified."""
+    from .artifact_graph import ArtifactGraph, FailureClass, NodeStatus
+    from .bfl_client import BFLError
+
+    def build(root: Path) -> ArtifactGraph:
+        g = ArtifactGraph(root)
+        g.add_node("research", "research", [])
+        g.add_node("script", "script", ["research"])
+        g.add_node("storyboard", "storyboard", ["script"])
+        g.add_node("scene_arch", "scene_architecture", ["storyboard"])
+        for s in ("scene_01", "scene_02", "scene_03"):
+            g.add_node(s, "scene", ["scene_arch"])
+        for sh in ("scene_03_shot_01", "scene_03_shot_02", "scene_03_shot_03"):
+            g.add_node(sh, "visual_asset", ["scene_03"])
+        return g
+
+    def produce(g: ArtifactGraph, nid: str, key: str) -> None:
+        p = g.attempt_dir(nid, 1) / "out.png"
+        p.write_text(nid)
+        g.begin(nid, key, {"name": "bfl", "model": "flux-kontext"})
+        g.mark_valid(nid, str(p))
+
+    # Test 1 — moderation recovery
+    g = build(base / "t1")
+    key = g.artifact_key("visual_asset", "A12F", "B82C", "flux", "kontext", "C991")
+    g.begin("scene_03_shot_02", key, {"name": "bfl"})
+    plan = g.record_failure("scene_03_shot_02", BFLError("moderated", status="Request Moderated"), "bfl")
+    c.check(
+        "T1 moderation classified + rewrite strategy",
+        plan["failure_class"] == FailureClass.MODERATION and plan["strategy"] == "prompt_safety_rewrite",
+    )
+    c.check("T1 node enters REPAIRING", g.nodes["scene_03_shot_02"].status == NodeStatus.REPAIRING)
+    produce(g, "scene_03_shot_02", g.artifact_key("visual_asset", "A12F", "D91E", "flux", "kontext", "C991"))
+    c.check("T1 recovers to VALID after retry", g.nodes["scene_03_shot_02"].status == NodeStatus.VALID)
+
+    # Test 2 — resume after crash
+    root = base / "t2"
+    g = build(root)
+    done = ("research", "script", "storyboard", "scene_arch", "scene_01", "scene_02")
+    for n in done:
+        produce(g, n, g.artifact_key(n, "h"))
+    g.save()
+    g2 = ArtifactGraph(root)  # simulate reload after crash
+    cached = [n for n in done if g2.is_valid(n, g2.artifact_key(n, "h"))]
+    c.check("T2 completed stages resume from cache", len(cached) == 6)
+    c.check(
+        "T2 the crashed stage is not cached (continues)", not g2.is_valid("scene_03", g2.artifact_key("scene_03", "h"))
+    )
+
+    # Test 3 — single-shot failure
+    g = build(base / "t3")
+    produce(g, "scene_03_shot_01", g.artifact_key("scene_03_shot_01", "h"))
+    g.begin("scene_03_shot_02", g.artifact_key("scene_03_shot_02", "h"), {"name": "bfl"})
+    g.record_failure("scene_03_shot_02", BFLError("moderated", status="Request Moderated"), "bfl")
+    c.check(
+        "T3 shot01 CACHE / shot02 REPAIR / shot03 GENERATE",
+        g.is_valid("scene_03_shot_01", g.artifact_key("scene_03_shot_01", "h"))
+        and g.nodes["scene_03_shot_02"].status == NodeStatus.REPAIRING
+        and g.nodes["scene_03_shot_03"].status == NodeStatus.PENDING,
+    )
+
+    # Test 4 — upstream invalidation
+    g = build(base / "t4")
+    for n in list(g.nodes):
+        produce(g, n, g.artifact_key(n, "h"))
+    inv = g.invalidate_downstream("storyboard")
+    c.check(
+        "T4 downstream of storyboard invalidated",
+        "scene_arch" in inv and "scene_03" in inv and "scene_03_shot_02" in inv,
+    )
+    c.check(
+        "T4 unrelated upstream stays cached", "research" not in inv and g.nodes["research"].status == NodeStatus.VALID
+    )
+    c.check("T4 invalidated node is STALE", g.nodes["scene_arch"].status == NodeStatus.STALE)
+
+    # Test 5 — chaos: kill after each stage, resume identical, no duplicate calls
+    root = base / "t5"
+    build(root).save()
+    stages = ["research", "script", "storyboard", "scene_arch", "scene_01", "scene_02", "scene_03"]
+    api_calls = {"n": 0}
+
+    def run_resume() -> None:
+        g = build(root)
+        for n in stages:
+            key = g.artifact_key(n, "h")
+            if g.is_valid(n, key):
+                continue
+            api_calls["n"] += 1
+            produce(g, n, key)
+        g.save()
+
+    for _ in range(len(stages)):  # repeated kill+resume
+        run_resume()
+    c.check(
+        "T5 chaos resume: exactly one generation per stage (no duplicate API calls)",
+        api_calls["n"] == len(stages),
+        str(api_calls),
+    )
+    g = ArtifactGraph(root)
+    c.check(
+        "T5 final state: every stage valid, checksums stable",
+        all(g.is_valid(n, g.artifact_key(n, "h")) for n in stages),
+    )
+
+
 def _test_moderation_recovery(c: Collector, base: Path) -> None:
     """A BFL content-moderation block must not kill the run: the prompt is
     rewritten to a safe clinical reframing and the image generation retried."""
@@ -2256,6 +2363,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_anatomical_separation(c, base / "anatomical")
     _test_part_perceptual_qc(c, base / "part_qc")
     _test_video_temporal_backends(c, base / "video_temporal")
+    _test_artifact_graph_p1(c, base / "artifact_graph")
     _test_moderation_recovery(c, base / "moderation")
     _test_character_director(c, base / "character_director")
     _test_flat_explainer_style(c)
