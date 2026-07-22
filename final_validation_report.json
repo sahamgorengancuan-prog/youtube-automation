@@ -3,11 +3,11 @@
   "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 414,
+  "total_checks": 420,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (270)",
+    "finalization_tests": "PASS (276)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -43,7 +43,8 @@
     "remotion_skeletal_executor": "RENDERED (nested-FK: CSS nested transforms compose parent->child; _export_rig writes part cutouts + resolved per-bone deltas to data.json; SkeletalLayer/Bone interleave own image + child subtrees by z-order). Isolated render MP4 articulates 18.5% localized to the character band.",
     "full_pipeline_through_remotion": "RENDERED (offline zero-gravity topic forced render.backend=remotion: topic -> storyboard -> architecture -> CharacterManifest -> rig -> DSL -> Remotion render, 0 errors, valid H.264 MP4, character articulates 33.6%). _render_remotion gained optional --browser-executable (config/env) for locked-egress; Colab still auto-downloads Remotion's shell.",
     "pixijs_effects": "RENDERED (real pixi.js 7.4.2 in the Remotion project: PixiEffects uses autoDetectRenderer -> WebGL when available, canvas fallback otherwise, so it renders in headless; EffectDirectives drive a GPU particle emitter + a DisplacementFilter water/wind shader; deterministic per-frame; DivParticles fallback if PIXI fails to init). Verified render: 1663 bright particle pixels/frame, 4691 changed pixels between frames (particles animate).",
-    "wan_skyreels_temporal": "WIRED, GPU-GATED (real diffusers image-to-video adapters: WanVideoBackend=WanImageToVideoPipeline/Wan2.2-TI2V-5B, SkyReelsVideoBackend=SkyReelsV2DiffusionForcingImageToVideoPipeline/SkyReels-V2-I2V; enable_model_cpu_offload + fp16/bf16 + vae slicing/tiling; real invoke path). Honestly gated: available() False without CUDA+diffusers; router falls back to the deterministic compositor offline; organic motion is NEVER faked (deterministic refuses organic complexity). Setup cell has a gated diffusers install (INSTALL_VIDEO_MODELS, off by default). Actual video generation is verifiable only on a large-GPU runtime with the weights — NOT verified in this offline env; the availability gating + fallback ARE unit-tested."
+    "wan_skyreels_temporal": "WIRED, GPU-GATED (real diffusers image-to-video adapters: WanVideoBackend=WanImageToVideoPipeline/Wan2.2-TI2V-5B, SkyReelsVideoBackend=SkyReelsV2DiffusionForcingImageToVideoPipeline/SkyReels-V2-I2V; enable_model_cpu_offload + fp16/bf16 + vae slicing/tiling; real invoke path). Honestly gated: available() False without CUDA+diffusers; router falls back to the deterministic compositor offline; organic motion is NEVER faked (deterministic refuses organic complexity). Setup cell has a gated diffusers install (INSTALL_VIDEO_MODELS, off by default). Actual video generation is verifiable only on a large-GPU runtime with the weights — NOT verified in this offline env; the availability gating + fallback ARE unit-tested.",
+    "moderation_recovery": "FIXED (BFL content-moderation no longer kills the run: flux_studio rewrites the prompt to a safe clinical reframing via PromptSafetyRewriter (LLM + deterministic softener) and retries, escalating, up to bfl_moderation_retries; recovery lineage persisted; only exhausted retries raise scene-scoped, and completed stages resume from cache). Unit-tested: moderate->rewrite->retry succeeds, run continues."
   },
   "audit_response": {
     "rive": "Custom 2D cutout skeletal rig, explicitly NOT Rive (no artboard/mesh/state-machine/.riv). Real-Rive path via a pre-made human_template.riv on the Rive Web Runtime remains optional/pending.",

@@ -99,7 +99,39 @@ class FluxKontextStudio:
             else:
                 self.llm.config[key] = value
         try:
-            return self.llm.generate_reference_image(prompt=prompt, output_path=output, init_image=init, force=force)
+            # Moderation recovery: a moderated prompt is rewritten to a safe
+            # clinical reframing and retried (escalating) before giving up
+            # scene-scoped, so one blocked image never kills the whole run.
+            from .prompt_safety import PromptSafetyRewriter, is_moderation_error
+
+            retries = int(self.config.get("bfl_moderation_retries", 3))
+            rewriter = PromptSafetyRewriter(self.llm, self.config.get("prompt_safety", {}))
+            current_prompt = prompt
+            attempt = 0
+            while True:
+                try:
+                    return self.llm.generate_reference_image(
+                        prompt=current_prompt, output_path=output, init_image=init, force=force or attempt > 0
+                    )
+                except Exception as exc:
+                    if not (is_moderation_error(exc) and attempt < retries):
+                        raise
+                    attempt += 1
+                    reason = str(getattr(exc, "status", "") or exc)
+                    rewritten = rewriter.rewrite(current_prompt, reason, attempt)
+                    save_json(
+                        self.root / "moderation_recovery" / f"{brief.brief_id}_attempt{attempt}.json",
+                        {
+                            "brief_id": brief.brief_id,
+                            "scene_id": brief.scene_id,
+                            "attempt": attempt,
+                            "reason": reason[:200],
+                            "previous_prompt_hash": hash_value(current_prompt, 24),
+                            "rewritten_prompt": rewritten,
+                            "rewritten_prompt_hash": hash_value(rewritten, 24),
+                        },
+                    )
+                    current_prompt = rewritten
         finally:
             for key, value in previous.items():
                 if value is None:

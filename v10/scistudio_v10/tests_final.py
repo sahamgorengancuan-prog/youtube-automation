@@ -1634,6 +1634,62 @@ def _test_part_perceptual_qc(c: Collector, base: Path) -> None:
     c.check("limb-length/tearing area_spread is measured (0..1)", 0.0 <= report["area_spread"] <= 1.0)
 
 
+def _test_moderation_recovery(c: Collector, base: Path) -> None:
+    """A BFL content-moderation block must not kill the run: the prompt is
+    rewritten to a safe clinical reframing and the image generation retried."""
+    from .bfl_client import BFLError
+    from .flux_studio import FluxKontextStudio
+    from .prompt_safety import deterministic_soften, is_moderation_error
+    from .schemas import DrawingBrief
+
+    base.mkdir(parents=True, exist_ok=True)
+    violent = "A person punching the wall, bloody knuckles, brutal violent impact, broken bones"
+    soft = deterministic_soften(violent, 1).lower()
+    c.check(
+        "deterministic softener neutralises violence/gore terms",
+        not any(t in soft for t in ("punch", "blood", "brutal", "violent", "broken")),
+        soft,
+    )
+    c.check(
+        "moderation detected from BFLError.status",
+        is_moderation_error(BFLError("moderated", status="Request Moderated")),
+    )
+    c.check("non-moderation errors are not misclassified", not is_moderation_error(ValueError("timeout")))
+
+    class _FakeLLM:
+        def __init__(self):
+            self.config = {}
+            self.calls = []
+
+        def generate_reference_image(self, *, prompt, output_path, init_image, force):
+            self.calls.append(prompt)
+            if len(self.calls) == 1:
+                raise BFLError("BFL request was moderated", status="Request Moderated")
+            Path(output_path).write_bytes(b"x" * 2000)
+            return Path(output_path)
+
+        def generate_json(self, **k):
+            return {"prompt": "clean educational diagram of hand-bone stress"}
+
+    llm = _FakeLLM()
+    studio = FluxKontextStudio(llm, None, {"bfl_moderation_retries": 3}, base / "flux")
+    brief = DrawingBrief(
+        brief_id="B1",
+        scene_id="S03",
+        positive_prompt=violent,
+        negative_prompt="",
+        kontext_instruction="",
+        compiled_prompt=violent,
+        output_path=str(base / "s3.png"),
+        aspect_ratio="9:16",
+        seed=1,
+    )
+    out = studio.generate(brief)
+    c.check("moderated scene recovers via rewrite+retry (run continues)", bool(out) and Path(out).exists())
+    c.check("BFL was retried once with a safe prompt", len(llm.calls) == 2 and "moderat" not in llm.calls[1].lower())
+    c.check("moderation-recovery lineage is persisted", any((base / "flux" / "moderation_recovery").glob("*.json")))
+
+
 def _test_video_temporal_backends(c: Collector, base: Path) -> None:
     """WAN 2.2 / SkyReels-V2 backends are real diffusers adapters, honestly gated:
     unavailable without a GPU, built only when enabled, and the router falls back
@@ -2200,6 +2256,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_anatomical_separation(c, base / "anatomical")
     _test_part_perceptual_qc(c, base / "part_qc")
     _test_video_temporal_backends(c, base / "video_temporal")
+    _test_moderation_recovery(c, base / "moderation")
     _test_character_director(c, base / "character_director")
     _test_flat_explainer_style(c)
     _test_flux_prompt_budget(c, base / "flux_budget")
