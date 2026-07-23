@@ -1741,6 +1741,100 @@ def _test_artifact_graph_p1(c: Collector, base: Path) -> None:
     )
 
 
+def _test_claim_graph_p3(c: Collector, base: Path) -> None:
+    """P3: the scientific claim graph traces each scene's claim to evidence
+    (Fact + Source + confidence) and flags scientific-looking visuals that are
+    not actually supported."""
+    from types import SimpleNamespace as NS
+
+    from .claim_graph import ScientificClaimGraph
+
+    research = NS(
+        facts=[
+            NS(
+                fact_id="F1", claim="Repeated impact causes cumulative tissue stress", source_ids=["S1"], confidence=0.9
+            ),
+            NS(fact_id="F2", claim="Bone remodels under load", source_ids=[], confidence=0.4),
+        ],
+        sources=[NS(source_id="S1", provider="openalex", authority_score=0.92, title="J Biomech")],
+    )
+    script = NS(
+        beats=[
+            NS(
+                beat_id="B1",
+                spoken_line="Every day you punch the wall.",
+                evidence_refs=["F1"],
+                retention_function="hook",
+                purpose="hook",
+            ),
+            NS(
+                beat_id="B2",
+                spoken_line="Your bones adapt.",
+                evidence_refs=["F2"],
+                retention_function="body",
+                purpose="body",
+            ),
+            NS(
+                beat_id="B3",
+                spoken_line="It looks dramatic.",
+                evidence_refs=[],
+                retention_function="body",
+                purpose="body",
+            ),
+        ]
+    )
+    storyboard = NS(
+        scenes=[
+            NS(
+                scene_id="SC01",
+                beat_id="B1",
+                narration="...",
+                scientific_claim="Repeated impact causes cumulative tissue stress",
+                visual_event="biomechanical stress diagram",
+            ),
+            NS(
+                scene_id="SC02",
+                beat_id="B2",
+                narration="...",
+                scientific_claim="Bone remodels under load",
+                visual_event="bone remodeling",
+            ),
+            NS(scene_id="SC03", beat_id="B3", narration="...", scientific_claim="", visual_event="dramatic wall crack"),
+        ]
+    )
+    g = ScientificClaimGraph({"claim_min_confidence": 0.5}, base).build(research, script, storyboard)
+    c.check("one claim node per scene", g["validation"]["claim_count"] == 3)
+    sc01 = next(cl for cl in g["claims"] if cl["scene_id"] == "SC01")
+    c.check(
+        "well-sourced claim traces to a peer-reviewed source with full support",
+        any(e["source_type"] == "peer_reviewed" and e["supports"] == "full" for e in sc01["evidence"]),
+    )
+    c.check("claim carries an aggregate confidence", sc01["confidence"] >= 0.8)
+    issues = {i["issue"] for i in g["validation"]["issues"]}
+    c.check("weak/unsourced evidence flagged (F2)", "unsourced_evidence" in issues or "low_confidence" in issues)
+    c.check("scientific-looking visual with no claim flagged (SC03)", "visual_without_claim" in issues)
+    c.check("claim_graph.json emitted", (base / "claim_graph.json").exists())
+    # A high-importance claim with zero evidence must be caught.
+    research2 = NS(facts=[], sources=[])
+    script2 = NS(beats=[NS(beat_id="B1", spoken_line="x", evidence_refs=[], retention_function="hook", purpose="hook")])
+    story2 = NS(
+        scenes=[
+            NS(
+                scene_id="SC01",
+                beat_id="B1",
+                narration="...",
+                scientific_claim="A bold unsupported claim",
+                visual_event="v",
+            )
+        ]
+    )
+    g2 = ScientificClaimGraph({}, base / "g2").build(research2, script2, story2)
+    c.check(
+        "high-importance unsupported claim is caught (not ok)",
+        g2["validation"]["ok"] is False and g2["validation"]["high_importance_unsupported"],
+    )
+
+
 def _test_visual_provider_router(c: Collector, base: Path) -> None:
     """P2: the visual provider router classifies errors and recovers scene-scoped
     — moderation rewrite + retry, transient retry, opt-in fallback provider, and a
@@ -2444,6 +2538,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_part_perceptual_qc(c, base / "part_qc")
     _test_video_temporal_backends(c, base / "video_temporal")
     _test_artifact_graph_p1(c, base / "artifact_graph")
+    _test_claim_graph_p3(c, base / "claim_graph")
     _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")
     _test_character_director(c, base / "character_director")
