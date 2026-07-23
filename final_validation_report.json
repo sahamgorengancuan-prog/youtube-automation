@@ -3,11 +3,11 @@
   "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 447,
+  "total_checks": 454,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (303)",
+    "finalization_tests": "PASS (310)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -47,7 +47,8 @@
     "moderation_recovery": "FIXED (BFL content-moderation no longer kills the run: flux_studio rewrites the prompt to a safe clinical reframing via PromptSafetyRewriter (LLM + deterministic softener) and retries, escalating, up to bfl_moderation_retries; recovery lineage persisted; only exhausted retries raise scene-scoped, and completed stages resume from cache). Unit-tested: moderate->rewrite->retry succeeds, run continues.",
     "artifact_graph_p1": "PASS (artifact DAG: ArtifactNode with artifact_key=hash(stage,input,prompt,model,model_version,config) + dependencies + node state machine PENDING..VALID/REPAIRING/RETRYING; is_valid() checks key+artifact+checksum; invalidate_downstream() dependency-aware; classify_failure() -> repair routing; graph/nodes.json+edges.json emitted per run. All 5 acceptance tests pass: moderation recovery, resume-after-crash, single-shot repair, upstream invalidation, chaos-kill idempotence with no duplicate calls).",
     "visual_provider_router_p2": "PASS (P2: VisualProvider interface + VisualProviderRouter with granular ErrorClass classification TIMEOUT/RATE_LIMIT/AUTH_ERROR/CONTENT_MODERATION/SERVER_ERROR/INVALID_REQUEST/QUALITY_FAILURE and per-class scene-scoped recovery: moderation->safe-rewrite->retry BFL, transient->retry, rate-limit->backoff+retry, quality->reseed, then opt-in fallback provider, then scene-scoped raise. BFL stays primary+default; alternate providers are opt-in (never a whole-video fallback). flux_studio.generate now delegates to the router. Unit-tested incl. classification, moderation recovery, transient retry, fallback, exhaustion.)",
-    "scientific_claim_graph_p3": "PASS (P3: ScientificClaimGraph assembles sentence->claim->evidence(Fact+Source+confidence)->scene->visualization lineage from existing artifacts (ResearchPack facts/sources, ScriptPackage beats.evidence_refs, Storyboard scenes.scientific_claim+visual_event) — deterministic, offline. Validates unsupported_claim/low_confidence/visual_without_claim/unsourced_evidence; catches high-importance unsupported claims. Emitted per run at 04b_claim_graph/claim_graph.json; optional require_evidence gate.)"
+    "scientific_claim_graph_p3": "PASS (P3: ScientificClaimGraph assembles sentence->claim->evidence(Fact+Source+confidence)->scene->visualization lineage from existing artifacts (ResearchPack facts/sources, ScriptPackage beats.evidence_refs, Storyboard scenes.scientific_claim+visual_event) — deterministic, offline. Validates unsupported_claim/low_confidence/visual_without_claim/unsourced_evidence; catches high-importance unsupported claims. Emitted per run at 04b_claim_graph/claim_graph.json; optional require_evidence gate.)",
+    "audio_first_timeline_p4": "PASS (P4: AudioTimeline builds per-scene audio windows + impact/emphasis beats from the voice word-timings — emphasis_words located in word_timing -> impact beats, sfx -> accent, end pause -> settle; primary_impact_frame snaps the primary motion. animation_director.plan accepts audio_impact_frame and _ensure_articulation lands the character gesture ON the spoken word instead of a fixed 20 percent. Emitted per run at 05b_audio_timeline/audio_timeline.json. Unit-tested: impact on emphasis word frame + snap.)"
   },
   "audit_response": {
     "rive": "Custom 2D cutout skeletal rig, explicitly NOT Rive (no artboard/mesh/state-machine/.riv). Real-Rive path via a pre-made human_template.riv on the Rive Web Runtime remains optional/pending.",

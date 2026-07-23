@@ -1741,6 +1741,54 @@ def _test_artifact_graph_p1(c: Collector, base: Path) -> None:
     )
 
 
+def _test_audio_timeline_p4(c: Collector, base: Path) -> None:
+    """P4: the audio-first timeline detects impact/emphasis beats from the voice
+    word-timings and gives a primary impact frame so motion lands on the word."""
+    from types import SimpleNamespace as NS
+
+    from .audio_timeline import AudioTimeline
+
+    script = NS(
+        beats=[
+            NS(
+                beat_id="B1",
+                spoken_line="Every day you PUNCH the wall.",
+                emphasis_words=["punch", "wall"],
+                sfx="impact_thud",
+                pause_after_ms=300,
+            )
+        ]
+    )
+    storyboard = NS(scenes=[NS(scene_id="SC01", beat_id="B1", duration_s=4.0)])
+    wt = {
+        "B1": [
+            {"word": "Every", "start_s": 0.0, "end_s": 0.4},
+            {"word": "day", "start_s": 0.4, "end_s": 0.8},
+            {"word": "you", "start_s": 0.8, "end_s": 1.1},
+            {"word": "punch", "start_s": 1.1, "end_s": 1.6},
+            {"word": "the", "start_s": 1.6, "end_s": 1.8},
+            {"word": "wall", "start_s": 1.8, "end_s": 2.4},
+        ]
+    }
+    tl = AudioTimeline({}, base).build(storyboard, script, {"word_timing": wt}, fps=12)
+    sc = tl["scenes"]["SC01"]
+    c.check("scene has an absolute audio window", sc["audio"]["start"] == 0.0 and sc["audio"]["end"] == 4.0)
+    kinds = {b["type"] for b in sc["beats"]}
+    c.check("emphasis words become impact beats", "impact" in kinds)
+    c.check("sfx becomes an accent beat", "accent" in kinds)
+    c.check("end-of-line pause becomes a settle beat", "settle" in kinds)
+    punch = next((b for b in sc["beats"] if b["word"] == "punch"), None)
+    c.check(
+        "impact beat lands on the spoken word frame (~1.1s*12fps)", punch is not None and punch["frame"] in (13, 14)
+    )
+    pif = AudioTimeline({}, None)
+    pif.build(storyboard, script, {"word_timing": wt}, fps=12)
+    c.check(
+        "primary impact frame snaps to the strongest emphasis word", pif.primary_impact_frame("SC01", 48) in (13, 14)
+    )
+    c.check("audio_timeline.json emitted", (base / "audio_timeline.json").exists())
+
+
 def _test_claim_graph_p3(c: Collector, base: Path) -> None:
     """P3: the scientific claim graph traces each scene's claim to evidence
     (Fact + Source + confidence) and flags scientific-looking visuals that are
@@ -2538,6 +2586,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_part_perceptual_qc(c, base / "part_qc")
     _test_video_temporal_backends(c, base / "video_temporal")
     _test_artifact_graph_p1(c, base / "artifact_graph")
+    _test_audio_timeline_p4(c, base / "audio_timeline")
     _test_claim_graph_p3(c, base / "claim_graph")
     _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")
