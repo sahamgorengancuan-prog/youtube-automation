@@ -1741,6 +1741,56 @@ def _test_artifact_graph_p1(c: Collector, base: Path) -> None:
     )
 
 
+def _test_continuity_validator_p5(c: Collector, base: Path) -> None:
+    """P5: the active continuity validator flags causal-state regressions (a
+    changed/damaged state that silently resets), character size jumps and
+    reappear-after-gap — and passes a clean, monotonic sequence."""
+    from .continuity_validator import ContinuityValidator
+
+    # intact -> damaged -> intact must be caught as a causal regression.
+    recs = [
+        {
+            "scene_id": "SC01",
+            "time_stage": "before, wall intact",
+            "characters": [{"id": "p", "area": 0.3}],
+            "focal_subject": "wall",
+        },
+        {
+            "scene_id": "SC02",
+            "time_stage": "after, wall damaged",
+            "characters": [{"id": "p", "area": 0.31}],
+            "focal_subject": "wall",
+        },
+        {
+            "scene_id": "SC03",
+            "time_stage": "before intact again",
+            "characters": [{"id": "p", "area": 0.32}],
+            "focal_subject": "wall",
+        },
+    ]
+    r = ContinuityValidator({}, base).validate(recs)
+    c.check("causal regression (intact->damaged->intact) caught", r["causal_regressions"] == ["SC03"])
+    c.check("continuity_report.json emitted", (base / "continuity_report.json").exists())
+
+    recs2 = [
+        {"scene_id": "SC01", "time_stage": "before", "characters": [{"id": "p", "area": 0.2}]},
+        {"scene_id": "SC02", "time_stage": "during", "characters": []},
+        {"scene_id": "SC03", "time_stage": "after", "characters": [{"id": "p", "area": 0.6}]},
+    ]
+    types = {i["type"] for i in ContinuityValidator({"continuity_max_size_jump": 0.4}, None).validate(recs2)["issues"]}
+    c.check("character reappear-after-gap flagged", "character_reappears_after_gap" in types)
+    c.check("character size jump flagged", "character_size_jump" in types)
+
+    clean = [
+        {"scene_id": "S1", "time_stage": "before", "characters": [{"id": "p", "area": 0.3}]},
+        {"scene_id": "S2", "time_stage": "during", "characters": [{"id": "p", "area": 0.32}]},
+        {"scene_id": "S3", "time_stage": "after", "characters": [{"id": "p", "area": 0.31}]},
+    ]
+    c.check("clean monotonic sequence passes", ContinuityValidator({}, None).validate(clean)["ok"])
+    reset = [{"scene_id": "S1", "time_stage": "after"}, {"scene_id": "S2", "time_stage": "before", "allow_reset": True}]
+    c.check("authored reset suppresses the regression flag", ContinuityValidator({}, None).validate(reset)["ok"])
+
+
 def _test_audio_timeline_p4(c: Collector, base: Path) -> None:
     """P4: the audio-first timeline detects impact/emphasis beats from the voice
     word-timings and gives a primary impact frame so motion lands on the word."""
@@ -2587,6 +2637,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_video_temporal_backends(c, base / "video_temporal")
     _test_artifact_graph_p1(c, base / "artifact_graph")
     _test_audio_timeline_p4(c, base / "audio_timeline")
+    _test_continuity_validator_p5(c, base / "continuity")
     _test_claim_graph_p3(c, base / "claim_graph")
     _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")
