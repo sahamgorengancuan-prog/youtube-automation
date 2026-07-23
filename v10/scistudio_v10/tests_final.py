@@ -1741,6 +1741,74 @@ def _test_artifact_graph_p1(c: Collector, base: Path) -> None:
     )
 
 
+def _test_quality_gate_p6(c: Collector, base: Path) -> None:
+    """P6: the hierarchical QC rolls up technical/structural/continuity/scientific/
+    editorial into one publish decision, and blocks publish on a blocking-level
+    fail (a causal-continuity regression)."""
+    import subprocess
+    from types import SimpleNamespace as NS
+
+    from .quality_gate import HierarchicalQC
+    from .utils import save_json
+
+    base.mkdir(parents=True, exist_ok=True)
+    mp4 = base / "final.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=180x320:r=12",
+            "-t",
+            "2",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(mp4),
+        ],
+        check=True,
+    )
+    save_json(
+        base / "20_part_qc" / "part_qc_reports.json",
+        [{"scene": "SC01", "failed_parts": [], "issues": ["joint_gap: [x]"]}],
+    )
+    save_json(base / "20_render_qc" / "summary.json", {"scenes": [{"object_motion": True, "render_verified": True}]})
+    save_json(base / "21_continuity" / "continuity_report.json", {"causal_regressions": [], "issues": []})
+    save_json(
+        base / "04b_claim_graph" / "claim_graph.json",
+        {"validation": {"high_importance_unsupported": [], "issue_count": 0}},
+    )
+    story = NS(
+        scenes=[NS(scene_id="S1", duration_s=3.0), NS(scene_id="S2", duration_s=4.0), NS(scene_id="S3", duration_s=3.5)]
+    )
+    script = NS(hook="What if...", closing="And that is why.", beats=[NS(retention_function="hook")])
+
+    r = HierarchicalQC({}, base).evaluate(base, mp4, story, script)
+    c.check("technical level passes on a real H.264 MP4", r["levels"]["technical"]["status"] == "pass")
+    c.check(
+        "all 5 levels present in the roll-up",
+        set(r["levels"]) == {"technical", "structural", "continuity", "scientific", "editorial"},
+    )
+    c.check("structural warn (joint gap) is non-blocking -> publishable", r["publishable"] is True)
+    c.check("quality_gate.json emitted", (base / "quality_gate.json").exists())
+
+    save_json(
+        base / "21_continuity" / "continuity_report.json",
+        {"causal_regressions": ["SC03"], "issues": [{"type": "causal_regression"}]},
+    )
+    r2 = HierarchicalQC({}, base / "g2").evaluate(base, mp4, story, script)
+    c.check("a causal-continuity regression fails the continuity level", r2["levels"]["continuity"]["status"] == "fail")
+    c.check(
+        "a blocking-level fail marks the video NOT publishable",
+        r2["publishable"] is False and "continuity" in r2["blocking_failures"],
+    )
+
+
 def _test_continuity_validator_p5(c: Collector, base: Path) -> None:
     """P5: the active continuity validator flags causal-state regressions (a
     changed/damaged state that silently resets), character size jumps and
@@ -2638,6 +2706,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_artifact_graph_p1(c, base / "artifact_graph")
     _test_audio_timeline_p4(c, base / "audio_timeline")
     _test_continuity_validator_p5(c, base / "continuity")
+    _test_quality_gate_p6(c, base / "quality_gate")
     _test_claim_graph_p3(c, base / "claim_graph")
     _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")
