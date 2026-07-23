@@ -43,6 +43,14 @@ class FluxKontextStudio:
         self.root = ensure_dir(root)
         self.image_generator = image_generator
 
+    def _image_fallbacks(self) -> list:
+        """Opt-in alternate visual providers, tried only after BFL's own recovery
+        is exhausted. Empty by default — BFL stays the sole default provider (the
+        production image lock is unchanged); an operator injects fallbacks via
+        ``studio.extra_visual_providers`` when a Gemini/local alternate is
+        deliberately enabled."""
+        return list(getattr(self, "extra_visual_providers", []) or [])
+
     def generate(self, brief: DrawingBrief, *, force: bool = False) -> Path | None:
         output = Path(brief.output_path)
         ensure_dir(output.parent)
@@ -62,7 +70,8 @@ class FluxKontextStudio:
             "scene_id": brief.scene_id,
             "purpose": brief.purpose,
             "model": brief.request_metadata.get(
-                "model", getattr(self.llm, "config", {}).get("bfl_model", "flux-kontext-pro")
+                "model",
+                getattr(self.llm, "config", {}).get("bfl_model", "flux-kontext-pro"),
             ),
             "prompt": prompt,
             "prompt_hash": hash_value(prompt, 24),
@@ -99,39 +108,35 @@ class FluxKontextStudio:
             else:
                 self.llm.config[key] = value
         try:
-            # Moderation recovery: a moderated prompt is rewritten to a safe
-            # clinical reframing and retried (escalating) before giving up
-            # scene-scoped, so one blocked image never kills the whole run.
-            from .prompt_safety import PromptSafetyRewriter, is_moderation_error
+            # Provider router: BFL primary with classified-error, scene-scoped
+            # recovery (moderation -> safe rewrite -> retry; transient -> retry;
+            # quality -> reseed; then any opt-in fallback provider). One asset per
+            # call — never a whole-video fallback.
+            from .visual_provider import VisualRequest, build_visual_router
 
-            retries = int(self.config.get("bfl_moderation_retries", 3))
-            rewriter = PromptSafetyRewriter(self.llm, self.config.get("prompt_safety", {}))
-            current_prompt = prompt
-            attempt = 0
-            while True:
-                try:
-                    return self.llm.generate_reference_image(
-                        prompt=current_prompt, output_path=output, init_image=init, force=force or attempt > 0
-                    )
-                except Exception as exc:
-                    if not (is_moderation_error(exc) and attempt < retries):
-                        raise
-                    attempt += 1
-                    reason = str(getattr(exc, "status", "") or exc)
-                    rewritten = rewriter.rewrite(current_prompt, reason, attempt)
-                    save_json(
-                        self.root / "moderation_recovery" / f"{brief.brief_id}_attempt{attempt}.json",
-                        {
-                            "brief_id": brief.brief_id,
-                            "scene_id": brief.scene_id,
-                            "attempt": attempt,
-                            "reason": reason[:200],
-                            "previous_prompt_hash": hash_value(current_prompt, 24),
-                            "rewritten_prompt": rewritten,
-                            "rewritten_prompt_hash": hash_value(rewritten, 24),
-                        },
-                    )
-                    current_prompt = rewritten
+            router = build_visual_router(self.llm, self.config, self._image_fallbacks())
+            result = router.generate(
+                VisualRequest(
+                    prompt=prompt,
+                    output_path=str(output),
+                    init_image=init,
+                    aspect_ratio=brief.aspect_ratio,
+                    seed=brief.seed,
+                    force=force,
+                )
+            )
+            if result.error_history:
+                save_json(
+                    self.root / "moderation_recovery" / f"{brief.brief_id}.json",
+                    {
+                        "brief_id": brief.brief_id,
+                        "scene_id": brief.scene_id,
+                        "final_provider": result.provider,
+                        "attempts": result.attempts,
+                        "error_history": result.error_history,
+                    },
+                )
+            return Path(result.path)
         finally:
             for key, value in previous.items():
                 if value is None:
@@ -186,7 +191,10 @@ class FluxKontextStudio:
                 revision_number=revision_cycle,
                 force=force,
             )
-            save_json(self.root / "change_orders" / f"{brief.scene_id}_{revision_cycle:02d}.json", change)
+            save_json(
+                self.root / "change_orders" / f"{brief.scene_id}_{revision_cycle:02d}.json",
+                change,
+            )
             if change.status == "approve":
                 approval_source = "vision-llm-art-director"
                 break
@@ -259,11 +267,16 @@ class FluxKontextStudio:
         revision_number: int,
     ) -> str:
         master = next(
-            (a.path for a in continuity.anchors if a.role == "master_style_anchor" and Path(a.path).exists()), ""
+            (a.path for a in continuity.anchors if a.role == "master_style_anchor" and Path(a.path).exists()),
+            "",
         )
         approved = [a.path for a in continuity.anchors if a.role == "approved_scene" and Path(a.path).exists()]
         previous = approved[-1] if approved else ""
-        items = [("MASTER STYLE", master), ("PREVIOUS APPROVED", previous), ("CURRENT DRAFT", current_path)]
+        items = [
+            ("MASTER STYLE", master),
+            ("PREVIOUS APPROVED", previous),
+            ("CURRENT DRAFT", current_path),
+        ]
         output = self.root / "director_boards" / f"{scene_id}_{revision_number:02d}.png"
         ensure_dir(output.parent)
         canvas = Image.new("RGB", (1536, 1024), "#E6E8E7")
@@ -357,7 +370,11 @@ unaffected regions. The prompt compiler will convert your adjustments into seque
             return fallback
         data = dict(raw)
         status = str(data.get("status", "")).strip().lower().replace(" ", "_")
-        if status in {"requires_human_or_vision_director", "no_reviewer", "unavailable"}:
+        if status in {
+            "requires_human_or_vision_director",
+            "no_reviewer",
+            "unavailable",
+        }:
             return fallback
         # Fields we authoritatively own — never let the model's echo break them.
         data["scene_id"] = brief.scene_id
@@ -416,7 +433,9 @@ unaffected regions. The prompt compiler will convert your adjustments into seque
         return out
 
     @staticmethod
-    def _variant_descriptions(architecture: SceneIllustrationArchitecture) -> dict[str, str]:
+    def _variant_descriptions(
+        architecture: SceneIllustrationArchitecture,
+    ) -> dict[str, str]:
         variants: dict[str, str] = {}
         for seam in architecture.motion_seams:
             for variant in seam.required_variants:

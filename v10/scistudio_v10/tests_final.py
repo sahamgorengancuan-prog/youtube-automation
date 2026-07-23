@@ -1741,6 +1741,86 @@ def _test_artifact_graph_p1(c: Collector, base: Path) -> None:
     )
 
 
+def _test_visual_provider_router(c: Collector, base: Path) -> None:
+    """P2: the visual provider router classifies errors and recovers scene-scoped
+    — moderation rewrite + retry, transient retry, opt-in fallback provider, and a
+    scene-scoped raise when everything is exhausted (never a whole-video fallback)."""
+    from .bfl_client import BFLError
+    from .visual_provider import (
+        CallableVisualProvider,
+        ErrorClass,
+        VisualRequest,
+        build_visual_router,
+        classify_error,
+    )
+
+    base.mkdir(parents=True, exist_ok=True)
+    c.check(
+        "moderation classified",
+        classify_error(BFLError("m", status="Request Moderated")) == ErrorClass.CONTENT_MODERATION,
+    )
+    c.check("timeout classified", classify_error(TimeoutError("timed out")) == ErrorClass.TIMEOUT)
+    c.check("rate-limit classified", classify_error(BFLError("r", status_code=429)) == ErrorClass.RATE_LIMIT)
+    c.check("auth classified", classify_error(BFLError("a", status_code=401)) == ErrorClass.AUTH_ERROR)
+    c.check("invalid-request classified", classify_error(ValueError("required field")) == ErrorClass.INVALID_REQUEST)
+
+    class _LLM:
+        def __init__(self, fail_times, exc):
+            self.config = {}
+            self.n = 0
+            self.fail_times = fail_times
+            self.exc = exc
+
+        def generate_reference_image(self, *, prompt, output_path, init_image, force):
+            self.n += 1
+            if self.n <= self.fail_times:
+                raise self.exc()
+            Path(output_path).write_bytes(b"x" * 2000)
+            return Path(output_path)
+
+        def generate_json(self, **k):
+            return {"prompt": "safe clinical educational diagram"}
+
+    # moderation -> rewrite -> retry BFL succeeds
+    r = build_visual_router(_LLM(1, lambda: BFLError("m", status="Request Moderated")), {"bfl_moderation_retries": 3})
+    res = r.generate(VisualRequest("violent prompt", str(base / "a.png")))
+    c.check(
+        "moderation recovers on primary (bfl)", res.provider == "bfl" and res.attempts == 2 and Path(res.path).exists()
+    )
+
+    # transient error retried then succeeds
+    r = build_visual_router(_LLM(1, lambda: TimeoutError("timed out")), {"transient_retries": 2})
+    res = r.generate(VisualRequest("p", str(base / "b.png")))
+    c.check("transient error retried same input", res.attempts == 2)
+
+    # BFL persistently moderated -> opt-in fallback provider (scene-scoped)
+    class _AlwaysMod:
+        config: dict = {}
+
+        def generate_reference_image(self, **k):
+            raise BFLError("m", status="Request Moderated")
+
+        def generate_json(self, **k):
+            return {"prompt": "safe"}
+
+    def _fb(req):
+        Path(req.output_path).write_bytes(b"y" * 2000)
+        return req.output_path
+
+    fb = CallableVisualProvider("gemini", _fb, lambda: True, "gemini-image")
+    r = build_visual_router(_AlwaysMod(), {"bfl_moderation_retries": 1}, [fb])
+    res = r.generate(VisualRequest("p", str(base / "c.png")))
+    c.check("falls back to opt-in provider after BFL exhausted", res.provider == "gemini")
+
+    # all exhausted -> scene-scoped raise (not whole-video)
+    r = build_visual_router(_AlwaysMod(), {"bfl_moderation_retries": 1})
+    try:
+        r.generate(VisualRequest("p", str(base / "d.png")))
+        c.check("all-exhausted raises", False, "no exception")
+    except RuntimeError as exc:
+        c.check("all-exhausted raises scene-scoped", "scene-scoped" in str(exc))
+
+
 def _test_moderation_recovery(c: Collector, base: Path) -> None:
     """A BFL content-moderation block must not kill the run: the prompt is
     rewritten to a safe clinical reframing and the image generation retried."""
@@ -2364,6 +2444,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_part_perceptual_qc(c, base / "part_qc")
     _test_video_temporal_backends(c, base / "video_temporal")
     _test_artifact_graph_p1(c, base / "artifact_graph")
+    _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")
     _test_character_director(c, base / "character_director")
     _test_flat_explainer_style(c)

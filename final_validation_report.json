@@ -3,11 +3,11 @@
   "package_version": "10.3.0-dev",
   "python": "3.11.15",
   "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
-  "total_checks": 431,
+  "total_checks": 440,
   "matrix": {
     "offline_test_suite": "PASS",
     "retained_regression_tests": "PASS (92)",
-    "finalization_tests": "PASS (287)",
+    "finalization_tests": "PASS (296)",
     "control_center_tests": "PASS (52)",
     "security_source_sweep": "PASS",
     "provider_lock_tests": "PASS",
@@ -45,7 +45,8 @@
     "pixijs_effects": "RENDERED (real pixi.js 7.4.2 in the Remotion project: PixiEffects uses autoDetectRenderer -> WebGL when available, canvas fallback otherwise, so it renders in headless; EffectDirectives drive a GPU particle emitter + a DisplacementFilter water/wind shader; deterministic per-frame; DivParticles fallback if PIXI fails to init). Verified render: 1663 bright particle pixels/frame, 4691 changed pixels between frames (particles animate).",
     "wan_skyreels_temporal": "WIRED, GPU-GATED (real diffusers image-to-video adapters: WanVideoBackend=WanImageToVideoPipeline/Wan2.2-TI2V-5B, SkyReelsVideoBackend=SkyReelsV2DiffusionForcingImageToVideoPipeline/SkyReels-V2-I2V; enable_model_cpu_offload + fp16/bf16 + vae slicing/tiling; real invoke path). Honestly gated: available() False without CUDA+diffusers; router falls back to the deterministic compositor offline; organic motion is NEVER faked (deterministic refuses organic complexity). Setup cell has a gated diffusers install (INSTALL_VIDEO_MODELS, off by default). Actual video generation is verifiable only on a large-GPU runtime with the weights — NOT verified in this offline env; the availability gating + fallback ARE unit-tested.",
     "moderation_recovery": "FIXED (BFL content-moderation no longer kills the run: flux_studio rewrites the prompt to a safe clinical reframing via PromptSafetyRewriter (LLM + deterministic softener) and retries, escalating, up to bfl_moderation_retries; recovery lineage persisted; only exhausted retries raise scene-scoped, and completed stages resume from cache). Unit-tested: moderate->rewrite->retry succeeds, run continues.",
-    "artifact_graph_p1": "PASS (artifact DAG: ArtifactNode with artifact_key=hash(stage,input,prompt,model,model_version,config) + dependencies + node state machine PENDING..VALID/REPAIRING/RETRYING; is_valid() checks key+artifact+checksum; invalidate_downstream() dependency-aware; classify_failure() -> repair routing; graph/nodes.json+edges.json emitted per run. All 5 acceptance tests pass: moderation recovery, resume-after-crash, single-shot repair, upstream invalidation, chaos-kill idempotence with no duplicate calls)."
+    "artifact_graph_p1": "PASS (artifact DAG: ArtifactNode with artifact_key=hash(stage,input,prompt,model,model_version,config) + dependencies + node state machine PENDING..VALID/REPAIRING/RETRYING; is_valid() checks key+artifact+checksum; invalidate_downstream() dependency-aware; classify_failure() -> repair routing; graph/nodes.json+edges.json emitted per run. All 5 acceptance tests pass: moderation recovery, resume-after-crash, single-shot repair, upstream invalidation, chaos-kill idempotence with no duplicate calls).",
+    "visual_provider_router_p2": "PASS (P2: VisualProvider interface + VisualProviderRouter with granular ErrorClass classification TIMEOUT/RATE_LIMIT/AUTH_ERROR/CONTENT_MODERATION/SERVER_ERROR/INVALID_REQUEST/QUALITY_FAILURE and per-class scene-scoped recovery: moderation->safe-rewrite->retry BFL, transient->retry, rate-limit->backoff+retry, quality->reseed, then opt-in fallback provider, then scene-scoped raise. BFL stays primary+default; alternate providers are opt-in (never a whole-video fallback). flux_studio.generate now delegates to the router. Unit-tested incl. classification, moderation recovery, transient retry, fallback, exhaustion.)"
   },
   "audit_response": {
     "rive": "Custom 2D cutout skeletal rig, explicitly NOT Rive (no artboard/mesh/state-machine/.riv). Real-Rive path via a pre-made human_template.riv on the Rive Web Runtime remains optional/pending.",
@@ -54,7 +55,8 @@
     "remotion_articulation": "DONE. Nested-FK SkeletalLayer renders object-level articulation; proven by an actual Remotion render and a full pipeline->Remotion run (both show limb articulation on the MP4).",
     "perceptual_qc": "DONE. part_qc checks joint gaps, background leakage, occlusion order, torso-drag, limb-length/tearing (area-spread) + optional Qwen vision gate incl. pose-fits-narration.",
     "still_open": "FLUX isolated hero assets (opt-in, only if needed) and the optional Rive .riv template remain. WAN/SkyReels are wired but GPU-gated (video generation unverified offline). No gap/torso-drag cleanliness needs the SAM2 production path (GPU).",
-    "production_reliability_P1": "Artifact DAG built on top of job_runtime stage-resume: per-node artifact_key + dependency-aware invalidation + failure classification (TRANSIENT/MODERATION/QUALITY_FAILURE/INVALID_INPUT/PROVIDER_FAILURE/FATAL) -> repair strategy + node state machine + lineage (graph/, attempts/). Emitted on every run. Deep DAG-driven execution (replacing linear job_runtime.execute per node) is the next increment; the engine + all 5 acceptance criteria are met and tested."
+    "production_reliability_P1": "Artifact DAG built on top of job_runtime stage-resume: per-node artifact_key + dependency-aware invalidation + failure classification (TRANSIENT/MODERATION/QUALITY_FAILURE/INVALID_INPUT/PROVIDER_FAILURE/FATAL) -> repair strategy + node state machine + lineage (graph/, attempts/). Emitted on every run. Deep DAG-driven execution (replacing linear job_runtime.execute per node) is the next increment; the engine + all 5 acceptance criteria are met and tested.",
+    "provider_router_P2": "VisualProviderRouter centralizes image recovery (moderation recovery is now its sub-component). BFL primary; Gemini/local HF are opt-in fallbacks injected via studio.extra_visual_providers, tried only after BFL recovery is exhausted, per-asset. Production image lock unchanged by default."
   },
   "providers": {
     "reasoning": "OpenAI GPT via OPENAI_API_KEY (exclusive in production)",
