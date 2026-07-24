@@ -1894,6 +1894,124 @@ def _test_resource_orchestrator_p7(c: Collector, base: Path) -> None:
     )
 
 
+def _test_rive_integration_optional(c: Collector, base: Path) -> None:
+    """Optional Rive template path (last resort, NOT core): with no .riv provided
+    it stays disabled and the custom cutout rig remains in control; when a real
+    template file is supplied and enabled, it builds a state-machine driver plan
+    and emits the RiveLayer.tsx loader + copies the template into the Remotion
+    project — never inventing a binary .riv."""
+    from .rive_runtime import RiveIntegration
+
+    base.mkdir(parents=True, exist_ok=True)
+    chars = [{"character_id": "c1", "scene_id": "S1", "pose_intent": "point"}]
+
+    # Disabled by default -> no-op, custom rig stays.
+    off = RiveIntegration({}, base / "off")
+    c.check("no template -> Rive disabled (custom rig default)", off.enabled is False)
+    plan_off = off.build_plan(chars)
+    c.check("disabled plan explains the custom-rig fallback", plan_off["enabled"] is False and plan_off["drivers"] == [])
+    c.check("disabled emit_remotion_assets is a no-op", off.emit_remotion_assets(base / "proj0")["enabled"] is False)
+
+    # enabled flag but a missing file path is still not enabled (never fabricates).
+    ghost = RiveIntegration({"enabled": True, "template_path": str(base / "missing.riv")}, base / "ghost")
+    c.check("enabled but missing .riv file is not active", ghost.enabled is False)
+
+    # Supply a real (stub) template file + enable -> active integration.
+    riv = base / "human_template.riv"
+    riv.write_bytes(b"RIVE\x00stub-binary")
+    on = RiveIntegration(
+        {"enabled": True, "template_path": str(riv), "state_machine": "SM1"}, base / "on"
+    )
+    c.check("a present template + enabled activates Rive", on.enabled is True)
+    plan = on.build_plan(chars)
+    c.check("driver maps pose_intent -> a state-machine input/value", plan["enabled"] and plan["drivers"]
+            and plan["drivers"][0]["input"] and plan["drivers"][0]["value"] == "point")
+    c.check("rive_plan.json is emitted", (base / "on" / "rive_plan.json").exists())
+
+    proj = base / "proj"
+    emitted = on.emit_remotion_assets(proj)
+    c.check("RiveLayer.tsx loader component is written", Path(emitted["component"]).exists())
+    c.check("loader references the Rive Web Runtime", "@rive-app/canvas" in Path(emitted["component"]).read_text())
+    c.check("template is copied into the Remotion public/ dir", Path(emitted["template_public"]).exists())
+
+
+def _test_hero_asset_f7(c: Collector, base: Path) -> None:
+    """F7: isolated hero assets are opt-in and gated — disabled or with no image
+    generator, build() returns None (the beauty-frame cutout stays the default
+    and nothing is fabricated). When enabled with a (fake) generator producing a
+    subject on a flat background, the background is keyed to transparent while
+    the subject stays opaque, and a manifest is emitted."""
+    from PIL import Image
+
+    from .hero_asset import HeroAssetStudio, key_flat_background
+
+    base.mkdir(parents=True, exist_ok=True)
+
+    # Keyer: subject rectangle on a white background -> bg transparent, subject opaque.
+    img = Image.new("RGB", (40, 40), (255, 255, 255))
+    for y in range(10, 30):
+        for x in range(10, 30):
+            img.putpixel((x, y), (200, 40, 40))
+    keyed = key_flat_background(img, tolerance=28, bg_rgb=(255, 255, 255))
+    c.check("keyed image is RGBA", keyed.mode == "RGBA")
+    c.check("a corner background pixel is transparent", keyed.getpixel((0, 0))[3] == 0)
+    c.check("a subject pixel stays opaque", keyed.getpixel((20, 20))[3] == 255)
+
+    # Gating: disabled -> None; enabled but no generator -> None.
+    off = HeroAssetStudio({"hero_isolated_asset": False}, base / "off", image_generator=lambda b: None)
+    c.check("disabled hero studio does not run (default cutout path)", off.build("S1", "a red cell") is None)
+    nogen = HeroAssetStudio({"hero_isolated_asset": True}, base / "nogen", image_generator=None)
+    c.check("enabled but no image generator -> None (never fabricates offline)", nogen.enabled is False)
+
+    # Enabled with a fake generator that renders a subject on a flat white bg.
+    def fake_gen(brief: Any) -> Path:
+        out = Path(brief.output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        im = Image.new("RGB", (48, 48), (255, 255, 255))
+        for y in range(14, 34):
+            for x in range(14, 34):
+                im.putpixel((x, y), (30, 90, 200))
+        im.save(out)
+        return out
+
+    on = HeroAssetStudio(
+        {"hero_isolated_asset": True, "hero_background": "white"}, base / "on", image_generator=fake_gen
+    )
+    c.check("enabled with a generator is active", on.enabled is True)
+    rec = on.build("S1", "a blue mitochondrion")
+    c.check("build returns a cutout record", rec is not None and Path(rec["cutout"]).exists())
+    c.check("cutout has a plausible opaque subject ratio (not empty, not full)", 0.05 < rec["opaque_ratio"] < 0.95)
+    man = on.generate_all([("S1", "a blue mitochondrion"), ("S2", "a green chloroplast")])
+    c.check("generate_all emits a manifest recording the opt-in default note", "default_note" in man)
+    c.check("hero_assets.json is emitted", (base / "on" / "hero_assets.json").exists())
+
+
+def _test_render_backend_select_f5(c: Collector, base: Path) -> None:
+    """F5: 'auto' is the default renderer selector — it prefers the Remotion
+    production path when the Node toolchain is present and degrades to the
+    deterministic PIL renderer (with a reason) when it is not, so a run never
+    crashes merely because Node is missing. Explicit 'remotion' can be made
+    strict; explicit 'pil' always uses PIL."""
+    from .hybrid_render import select_render_backend
+
+    b, note = select_render_backend("auto", has_node=True)
+    c.check("auto + node -> Remotion production path", b == "remotion" and note == "")
+    b, note = select_render_backend("auto", has_node=False)
+    c.check("auto without node -> PIL fallback with a reason", b == "pil" and bool(note))
+    c.check("explicit pil always renders with PIL", select_render_backend("pil", has_node=True)[0] == "pil")
+    c.check("explicit remotion + node -> remotion", select_render_backend("remotion", has_node=True)[0] == "remotion")
+    c.check(
+        "explicit remotion without node degrades to PIL by default (non-strict)",
+        select_render_backend("remotion", has_node=False)[0] == "pil",
+    )
+    raised = False
+    try:
+        select_render_backend("remotion", has_node=False, strict=True)
+    except RuntimeError:
+        raised = True
+    c.check("strict remotion without node is a hard error", raised is True)
+
+
 def _test_topic_engine_p8(c: Collector, base: Path) -> None:
     """P8: the autonomous topic engine proposes candidates, scores each on
     richness/visual/novelty/appeal/safety, prefers an unproduced high-appeal
@@ -2886,6 +3004,9 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_continuity_validator_p5(c, base / "continuity")
     _test_quality_gate_p6(c, base / "quality_gate")
     _test_resource_orchestrator_p7(c, base / "resource_orchestrator")
+    _test_render_backend_select_f5(c, base / "render_backend")
+    _test_hero_asset_f7(c, base / "hero_asset")
+    _test_rive_integration_optional(c, base / "rive")
     _test_topic_engine_p8(c, base / "topic_engine")
     _test_metadata_engine_p9(c, base / "metadata_engine")
     _test_claim_graph_p3(c, base / "claim_graph")

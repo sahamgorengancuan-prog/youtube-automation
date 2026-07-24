@@ -11,6 +11,42 @@ from .schemas import HybridLayer, HybridScenePackage, MotionEvent
 from .utils import ensure_dir, save_json
 
 
+def select_render_backend(
+    requested: str, has_node: bool, strict: bool = False
+) -> tuple[str, str]:
+    """Decide which renderer to run.
+
+    ``requested`` is the configured ``render.backend`` — ``"auto"`` (the default)
+    picks the best available: **Remotion** when the Node toolchain is present,
+    else the deterministic **PIL** renderer, so a run never crashes just because
+    Node is missing. An explicit ``"remotion"`` degrades to PIL the same way
+    unless ``strict`` is set, in which case a missing toolchain is a hard error.
+    Explicit ``"pil"``/``"preview"``/``"deterministic"`` always render with PIL.
+
+    Returns ``(backend, note)`` where ``backend`` is ``"remotion"`` or ``"pil"``
+    and ``note`` is a human-readable reason when a fallback happened (else "").
+    """
+    req = (requested or "auto").strip().lower()
+    if req in {"pil", "deterministic", "preview"}:
+        return "pil", ""
+    if req in {"remotion", "auto"}:
+        if has_node:
+            return "remotion", ""
+        if req == "remotion" and strict:
+            raise RuntimeError(
+                "render.backend='remotion' requires the Node toolchain (node/npm/npx); "
+                "install Node 18+ or use render.backend='auto' (or 'pil')."
+            )
+        return "pil", (
+            "Node/npm/npx not found — using the deterministic PIL renderer. "
+            "Install Node 18+ for the Remotion production path."
+        )
+    # Unknown value: behave like auto rather than failing.
+    return ("remotion" if has_node else "pil"), (
+        f"unknown render.backend={requested!r}; treated as 'auto'."
+    )
+
+
 class PILHybridRenderer:
     """Deterministic fallback renderer for hybrid raster/SVG scene packages.
 
@@ -51,7 +87,9 @@ class PILHybridRenderer:
                         continue
                     canvas.alpha_composite(image.resize(scene.canvas))
                 # Supporting motion: only what the director authored in the DSL.
-                finished = self.executor.execute(canvas.convert("RGB"), scene.animation, frame, scene.duration_frames)
+                finished = self.executor.execute(
+                    canvas.convert("RGB"), scene.animation, frame, scene.duration_frames
+                )
                 finished.save(frame_dir / f"frame_{global_index:06d}.png")
                 global_index += 1
         if not shutil.which("ffmpeg"):
@@ -81,9 +119,15 @@ class PILHybridRenderer:
         for layer in scene.layers:
             images: list[Image.Image] = []
             if layer.kind == "video_clip":
-                clip_dir = ensure_dir(self.root / "video_cache" / f"{scene.scene_id}_{layer.layer_id}")
+                clip_dir = ensure_dir(
+                    self.root / "video_cache" / f"{scene.scene_id}_{layer.layer_id}"
+                )
                 existing = sorted(clip_dir.glob("frame_*.png"))
-                if not existing and shutil.which("ffmpeg") and Path(layer.path).exists():
+                if (
+                    not existing
+                    and shutil.which("ffmpeg")
+                    and Path(layer.path).exists()
+                ):
                     subprocess.run(
                         [
                             "ffmpeg",
@@ -145,7 +189,8 @@ class PILHybridRenderer:
             1.0,
             max(
                 0.0,
-                (frame - event.start_frame) / max(1, event.end_frame - event.start_frame),
+                (frame - event.start_frame)
+                / max(1, event.end_frame - event.start_frame),
             ),
         )
         if event.representation == "skeletal_pose" and getattr(layer, "rig", None):
@@ -170,7 +215,9 @@ class PILHybridRenderer:
             w, h = image.size
             pivot = getattr(layer, "pivot", (0.5, 0.5))
             center = (pivot[0] * w, pivot[1] * h)  # rotate about the object pivot
-            return image.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False, center=center)
+            return image.rotate(
+                angle, resample=Image.Resampling.BICUBIC, expand=False, center=center
+            )
         if event.representation == "scale":
             amount = 1 + (float(event.parameters.get("to", 1.03)) - 1) * progress
             w, h = image.size
@@ -200,7 +247,9 @@ class PILHybridRenderer:
             return images[min(len(images) - 1, int(progress * len(images)))].copy()
         return image
 
-    def _skeletal(self, layer: HybridLayer, image: Image.Image, event: MotionEvent, progress: float) -> Image.Image:
+    def _skeletal(
+        self, layer: HybridLayer, image: Image.Image, event: MotionEvent, progress: float
+    ) -> Image.Image:
         """Execute an authored ``skeletal_pose``: deform the rigged character's
         body parts along its bones (forward kinematics). Pure executor."""
         from .skeletal_deform import SkeletalDeformer, resolve_pose
@@ -241,7 +290,8 @@ class RemotionHybridExporter:
             (
                 e
                 for e in scene.animation.events
-                if e.target_layer == layer.layer_id and e.representation == "skeletal_pose"
+                if e.target_layer == layer.layer_id
+                and e.representation == "skeletal_pose"
             ),
             None,
         )
@@ -251,7 +301,9 @@ class RemotionHybridExporter:
             cut = bone.get("cutout")
             if not cut or not Path(cut).exists():
                 continue
-            name = f"{scene.scene_id}_{layer.layer_id}_{bone['name']}_cutout.png".replace(" ", "_")
+            name = f"{scene.scene_id}_{layer.layer_id}_{bone['name']}_cutout.png".replace(
+                " ", "_"
+            )
             shutil.copy2(cut, public / name)
             bones.append(
                 {
@@ -270,7 +322,9 @@ class RemotionHybridExporter:
         )
         return {"bones": bones, "window": window}
 
-    def create_project(self, scenes: list[HybridScenePackage], support_bed_path: str = "") -> Path:
+    def create_project(
+        self, scenes: list[HybridScenePackage], support_bed_path: str = ""
+    ) -> Path:
         public = ensure_dir(self.root / "public")
         src = ensure_dir(self.root / "src")
         data_scenes = []
@@ -284,7 +338,9 @@ class RemotionHybridExporter:
                     source = Path(path)
                     if not source.exists():
                         continue
-                    name = f"{scene.scene_id}_{layer.layer_id}_{source.name}".replace(" ", "_")
+                    name = f"{scene.scene_id}_{layer.layer_id}_{source.name}".replace(
+                        " ", "_"
+                    )
                     destination = public / name
                     shutil.copy2(source, destination)
                     copied.append(name)
@@ -300,7 +356,9 @@ class RemotionHybridExporter:
                 # rig the PIL renderer uses. Nested DOM transforms compose FK.
                 rig = getattr(layer, "rig", None)
                 if rig and rig.get("bones"):
-                    layer_data["rig"] = self._export_rig(rig, scene, layer, public)
+                    layer_data["rig"] = self._export_rig(
+                        rig, scene, layer, public
+                    )
                 layers.append(layer_data)
             data_scenes.append(
                 {

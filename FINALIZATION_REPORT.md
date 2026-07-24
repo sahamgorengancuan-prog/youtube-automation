@@ -503,16 +503,33 @@ final MP4 — the phase-completion bar for P4.
 
 * **PixiJS (audit #5)** — real GPU particle/shader layer in the Remotion render
   (npm `pixi.js`): not yet present; current particles are PIL / React-div.
-* **Remotion as default (audit #6)** — exporter is complete; default backend is
-  still PIL. Making Remotion the auto-selected default (with a Node/npm install
-  step) is pending.
+* **Remotion as default (audit #6) — DONE (F5).** `render.backend` now defaults
+  to `"auto"`: `select_render_backend()` picks the Remotion production path when
+  the Node toolchain is present and degrades to the deterministic PIL renderer
+  (with a reason) when it is not, so a run never crashes just because Node is
+  missing. The setup cell reports/ensures Node; explicit `"remotion"` can be made
+  strict. See matrix `remotion_auto_default_f5`.
 * **WAN 2.2 / SkyReels (audit #7)** — only a generic external temporal adapter
   exists; the diffusers install + model invocation + GPU-memory management are
   pending. These need a large-GPU runtime and cannot be validated in this
   offline environment — they will be wired with honest GPU-gating.
-* **FLUX separate object PNG (audit #1)** — object PNGs remain mask-cutouts of
-  the one beauty frame (best pixel/identity consistency); an opt-in path for
-  FLUX to generate an isolated hero-object PNG is pending.
+* **FLUX separate object PNG (audit #1) — DONE (F7, opt-in).** The default is
+  unchanged: object PNGs are mask-cutouts of the one beauty frame (best
+  pixel/identity consistency). `hero_asset.py` adds an **opt-in**
+  (`flux_studio.hero_isolated_asset`) path that renders a hero subject alone on a
+  flat background via FLUX and keys the background to a transparent PNG. It is
+  honestly gated: it runs only with a real image generator (never fabricates
+  offline). The deterministic background-keying is unit-tested. See matrix
+  `hero_isolated_asset_f7`.
+
+The **optional Rive template** path (`rive_runtime.py`) is also now provided as
+an explicit **last-resort, non-core** integration: with no `.riv` supplied it is
+a no-op and the custom 2D cutout rig stays in control; given a real
+`human_template.riv` + `rive.enabled`, it builds a state-machine driver plan and
+emits a `RiveLayer.tsx` loader (Rive Web Runtime, `@rive-app/canvas`) that drives
+the provided template in the Remotion render. A binary `.riv` must still be
+authored in the Rive Editor — the repo ships the integration, not a template.
+See matrix `rive_optional_integration`.
 
 Unit tests `_test_rig_builder` and `_test_skeletal_deform` cover the new modules
 in the aggregate suite; the end-to-end figure→rig→articulated-render chain is
