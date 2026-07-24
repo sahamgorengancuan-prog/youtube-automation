@@ -1809,6 +1809,91 @@ def _test_quality_gate_p6(c: Collector, base: Path) -> None:
     )
 
 
+def _test_resource_orchestrator_p7(c: Collector, base: Path) -> None:
+    """P7: the resource orchestrator classifies each stage by resource, schedules
+    independent per-scene work into a parallel wave (gating GPU/A100 when no
+    accelerator is present), estimates the run cost from a price table, and
+    enforces a cost + retry budget. The plan is emitted so a run's spend and
+    schedule are inspectable before anything is incurred."""
+    import time
+
+    from .resource_orchestrator import (
+        Budget,
+        ResourceOrchestrator,
+        Scheduler,
+        parallel_map,
+    )
+
+    base.mkdir(parents=True, exist_ok=True)
+
+    # --- cost estimate: reasoning tokens + BFL images (candidates + scenes) ---
+    orch = ResourceOrchestrator({"max_cost_usd": 1.0, "max_retries": 3}, base, gpu_available=False)
+    est = orch.estimate_run(scene_count=3, candidate_count=4, bfl_enabled=True, video_seconds=0.0)
+    # images = scenes*candidates + scenes = 3*4 + 3 = 15
+    c.check("cost estimate counts candidate+scene images (3*4+3=15)", est["images"] == 15)
+    c.check("estimate has a positive total spend", est["total_usd"] > 0.0)
+    c.check(
+        "estimate breaks down openai + bfl_images + video",
+        {"openai", "bfl_images", "video"}.issubset(est),
+    )
+
+    # --- budget: afford, charge, exhaust, and cap retries ---
+    b = Budget(max_cost_usd=0.10, max_retries=2)
+    c.check("budget affords a sub-cap charge", b.charge(0.06) is True)
+    c.check("budget refuses a charge that would exceed the cap", b.charge(0.06) is False and b.spent == 0.06)
+    c.check("retry budget allows up to max_retries", b.allow_retry() and b.allow_retry())
+    c.check("retry budget refuses beyond max_retries", b.allow_retry() is False)
+
+    # --- scheduler: per-scene tasks form one parallel wave; GPU gated ---
+    sched = Scheduler(gpu_available=False, max_api_workers=4)
+    tasks = [
+        {"id": "storyboard", "stage": "storyboard", "deps": []},
+        {"id": "s1", "stage": "beauty_frame", "deps": ["storyboard"]},
+        {"id": "s2", "stage": "beauty_frame", "deps": ["storyboard"]},
+        {"id": "s3", "stage": "beauty_frame", "deps": ["storyboard"]},
+        {"id": "seg1", "stage": "segmentation", "deps": ["s1"]},
+    ]
+    waves = sched.plan(tasks)
+    scene_wave = next((w for w in waves if set(w["parallel_ids"]) >= {"s1", "s2", "s3"}), None)
+    c.check("independent scenes schedule into one parallel wave", scene_wave is not None)
+    c.check("parallel wave caps workers at scene count", scene_wave and scene_wave["max_workers"] == 3)
+    seg_entry = next(
+        (e for w in waves for e in w["tasks"] if e["id"] == "seg1"), None
+    )
+    c.check("segmentation is a GPU stage", seg_entry and seg_entry["resource"] == "gpu")
+    c.check("GPU stage is gated when no accelerator is present", seg_entry and seg_entry["gpu_gated"] is True)
+
+    # --- parallel_map: really runs concurrently, and respects the budget ---
+    def _work(x: int) -> int:
+        time.sleep(0.15)
+        return x * x
+
+    t0 = time.time()
+    out = parallel_map(_work, [1, 2, 3, 4], max_workers=4)
+    elapsed = time.time() - t0
+    c.check("parallel_map returns per-item results in order", out == [1, 4, 9, 16])
+    c.check("parallel_map runs concurrently (4x0.15s well under serial 0.6s)", elapsed < 0.45)
+
+    bud = Budget(max_cost_usd=0.06)
+    dispatched = parallel_map(lambda x: x, [1, 2, 3, 4], max_workers=2, budget=bud, unit_cost=0.02)
+    n_done = sum(1 for r in dispatched if r is not None)
+    c.check("budget-limited parallel_map dispatches only what it can afford (3 of 4)", n_done == 3)
+
+    # --- emit: the plan is written to disk ---
+    plan = orch.emit(
+        scene_count=3,
+        candidate_count=4,
+        bfl_enabled=True,
+        stages=["research", "storyboard", "beauty_frame", "segmentation", "render_remotion"],
+        video_seconds=0.0,
+    )
+    c.check("orchestration_plan.json is emitted", (base / "orchestration_plan.json").exists())
+    c.check(
+        "emitted plan carries estimate + budget + schedule",
+        {"estimate", "budget", "schedule"}.issubset(plan),
+    )
+
+
 def _test_continuity_validator_p5(c: Collector, base: Path) -> None:
     """P5: the active continuity validator flags causal-state regressions (a
     changed/damaged state that silently resets), character size jumps and
@@ -2707,6 +2792,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_audio_timeline_p4(c, base / "audio_timeline")
     _test_continuity_validator_p5(c, base / "continuity")
     _test_quality_gate_p6(c, base / "quality_gate")
+    _test_resource_orchestrator_p7(c, base / "resource_orchestrator")
     _test_claim_graph_p3(c, base / "claim_graph")
     _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")

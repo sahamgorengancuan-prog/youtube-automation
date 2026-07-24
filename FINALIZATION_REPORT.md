@@ -518,3 +518,76 @@ Unit tests `_test_rig_builder` and `_test_skeletal_deform` cover the new modules
 in the aggregate suite; the end-to-end figure→rig→articulated-render chain is
 validated against `linear/src`. Nothing here adds a new production reasoning or
 image provider: reasoning stays OpenAI-only, images stay BFL-only.
+
+**Increments 5–6 status update (audit #5 / #7 now done).** The two "still open"
+items above have since been built and are wired into the Remotion project + the
+setup cell — see the matrix keys `pixijs_effects` and `wan_skyreels_temporal`.
+PixiJS is a real `pixi.js` 7.4.2 GPU particle/shader layer (verified rendering);
+WAN 2.2 / SkyReels are real diffusers image-to-video adapters, honestly GPU-gated
+(unverifiable offline). Remotion-as-default (#6) and the FLUX isolated hero PNG
+(#1) remain opt-in / deprioritized per the operator's ordering.
+
+## 14. Addendum — production reliability layer (P1–P7, 10.3.0-dev)
+
+A real run crashed when BFL rejected one prompt on content-moderation grounds
+and took the whole pipeline down. The fix was not just to catch that error but
+to build the reliability layer the operator specified — so a run is resumable,
+provider failures are recovered in a scoped way, the science is traceable,
+motion lands on the audio, continuity is actively checked, publish is gated, and
+the spend is budgeted. Each priority is a real, unit-tested module that emits
+lineage artifacts; none is a stub.
+
+* **P1 — Artifact Graph + deterministic resume (`artifact_graph.py`).** A DAG of
+  `ArtifactNode`s keyed by `artifact_key = hash(stage, input_hash, prompt_hash,
+  model, model_version, config_hash)`, with a node state machine
+  (`PENDING → RUNNING → VALID`, plus `REPAIRING`/`RETRYING`/`FAILED`),
+  `is_valid()` (key + artifact + checksum), dependency-aware
+  `invalidate_downstream()`, and `classify_failure()` routing
+  (TRANSIENT/MODERATION/QUALITY_FAILURE/INVALID_INPUT/PROVIDER_FAILURE/FATAL →
+  repair strategy). Emitted per run under `graph/`. All **5 acceptance tests**
+  pass: moderation recovery, resume-after-crash, single-shot repair, upstream
+  invalidation, and chaos-kill idempotence (no duplicate provider calls).
+* **P2 — Visual provider router + moderation recovery (`visual_provider.py`,
+  `prompt_safety.py`).** A `VisualProvider` interface + `VisualProviderRouter`
+  with granular `ErrorClass` classification and per-class, **scene-scoped**
+  recovery: moderation → safe prompt rewrite → retry BFL; transient/rate-limit →
+  backoff + retry; quality → reseed; then an opt-in fallback provider; then a
+  scene-scoped raise. BFL stays primary and default — alternates are opt-in, never
+  a whole-video fallback. `flux_studio.generate` delegates to the router.
+* **P3 — Scientific claim graph (`claim_graph.py`).** Assembles
+  sentence → claim → evidence(Fact + Source + confidence) → scene → visualization
+  lineage from existing artifacts and flags `unsupported_claim` / `low_confidence`
+  / `visual_without_claim` / `unsourced_evidence`. Optional `require_evidence`
+  gate. Emitted at `04b_claim_graph/claim_graph.json`.
+* **P4 — Audio-first timeline (`audio_timeline.py`).** Derives per-scene audio
+  windows + impact/accent/settle beats from the voice word-timings, and
+  `primary_impact_frame` snaps the character gesture onto the spoken emphasis word
+  (via `_ensure_articulation`) instead of a fixed 20 % offset. Emitted at
+  `05b_audio_timeline/audio_timeline.json`.
+* **P5 — Continuity validator (`continuity_validator.py`).** Turns the canon into
+  an active check — flags character reappear-after-gap, size/proportion jumps,
+  focal drift, and **causal-state regressions** (e.g. intact → damaged → intact)
+  from authored per-scene records. `allow_reset` suppresses an authored reset;
+  optional VL check is GPU-gated. Emitted at `21_continuity/continuity_report.json`.
+* **P6 — Hierarchical quality gate (`quality_gate.py`).** Rolls up 5 levels into
+  one publish decision — L1 Technical (ffprobe), L2 Structural (part_qc +
+  post-render QC), L3 Continuity, L4 Scientific (claim graph), L5 Editorial —
+  and sets `publishable=False` when a blocking level fails; publishing is skipped
+  on a not-publishable video. Emitted at `22_quality_gate/quality_gate.json`.
+* **P7 — Resource + cost orchestrator (`resource_orchestrator.py`).** Classifies
+  each stage by resource (CPU / API / GPU / A100), schedules the independent
+  per-scene work into a parallel wave (gating GPU/A100 stages when no accelerator
+  is present), estimates the run cost from a price table (OpenAI per 1K tokens,
+  BFL per image, organic-video per second), and enforces a `max_cost_usd` +
+  `max_retries` **budget** (`can_afford`/`charge`/`allow_retry`). `parallel_map`
+  is a real budget-aware `ThreadPool` executor for the per-scene API work. The
+  plan — resource classes + estimated spend + parallel waves + budget — is emitted
+  at `00_orchestration/orchestration_plan.json` so a run's cost and schedule are
+  inspectable before anything is incurred. Unit-tested (`_test_resource_orchestrator_p7`):
+  cost estimate, budget affordance/exhaustion + retry cap, parallel scene wave +
+  GPU gating, real concurrency, budget-limited dispatch, and plan emission.
+
+Every P1–P7 module is exercised by the aggregate suite and rolls its artifacts
+into the P6 publish gate. Providers are unchanged: reasoning stays OpenAI-only,
+images stay BFL-only. Still ahead on the roadmap: **P8 autonomous topic engine**
+and **P9 automated metadata + publishing**.
