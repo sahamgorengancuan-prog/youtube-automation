@@ -2052,6 +2052,44 @@ def _test_adaptive_candidate_tournament(c: Collector, base: Path) -> None:
     c.check("non-adaptive preserves the two-candidate tournament minimum", calls["n"] >= 2 and len(res2.candidates) >= 2)
 
 
+def _test_remotion_npm_robustness(c: Collector, base: Path) -> None:
+    """Robustness: `npm install` for the Remotion project uses --legacy-peer-deps
+    (the peer conflict that killed a live run), retries transient failures, and
+    surfaces the captured npm output on final failure instead of a bare exit
+    code. A first-attempt failure that then succeeds must not raise."""
+    from types import SimpleNamespace as NS
+
+    from .hybrid_render import remotion_npm_install
+
+    base.mkdir(parents=True, exist_ok=True)
+    calls: list[list[str]] = []
+    plan = {"install_returncodes": [1, 0]}  # fail once, then succeed
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        if cmd[:2] == ["npm", "install"]:
+            rc = plan["install_returncodes"].pop(0) if plan["install_returncodes"] else 0
+            return NS(returncode=rc, stdout="", stderr="npm ERR! ERESOLVE could not resolve peer dep")
+        return NS(returncode=0, stdout="", stderr="")
+
+    # Transient-then-success: no raise, and the install command is tolerant.
+    remotion_npm_install(base / "proj", attempts=3, timeout=30, runner=fake_run)
+    install_cmds = [c for c in calls if c[:2] == ["npm", "install"]]
+    c.check("npm install is retried after a transient failure", len(install_cmds) == 2)
+    c.check("npm install uses --legacy-peer-deps (peer-conflict tolerant)", "--legacy-peer-deps" in install_cmds[0])
+
+    # Persistent failure -> RuntimeError carrying the captured npm output.
+    calls.clear()
+    plan["install_returncodes"] = [1, 1, 1]
+    raised = ""
+    try:
+        remotion_npm_install(base / "proj", attempts=3, timeout=30, runner=fake_run)
+    except RuntimeError as exc:
+        raised = str(exc)
+    c.check("persistent npm failure raises after the attempt budget", "npm install failed after 3" in raised)
+    c.check("the raised error surfaces the captured npm output", "ERESOLVE" in raised)
+
+
 def _test_release_integrity_p0(c: Collector, base: Path) -> None:
     """P0 release integrity: a run can prove the code it executes is the code that
     was bundled/tested. compute_source_digest is deterministic and order-free; a
@@ -3125,6 +3163,7 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_quality_gate_p6(c, base / "quality_gate")
     _test_resource_orchestrator_p7(c, base / "resource_orchestrator")
     _test_release_integrity_p0(c, base / "release_integrity")
+    _test_remotion_npm_robustness(c, base / "npm_robustness")
     _test_adaptive_candidate_tournament(c, base / "adaptive_tournament")
     _test_render_backend_select_f5(c, base / "render_backend")
     _test_hero_asset_f7(c, base / "hero_asset")

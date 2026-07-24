@@ -673,3 +673,32 @@ the metadata *package* is built (P9) but only local-archive / Upload-Post
 adapters exist; and **deeper per-subprocess artifact granularity** inside a scene
 (candidate/rig/render as separate cached nodes) beyond the current stage-level
 graph. Both are noted as the next real increments; neither is claimed as done.
+
+## 16. Addendum — render robustness (a live `npm install` failure)
+
+A live production run failed with `CalledProcessError: npm install ... exit 1`
+during the Remotion path — throwing away all the completed scene work. F5 had
+made Remotion the auto-default, so a real Colab run took the production renderer
+and a single `npm install` failure killed the pipeline. That is precisely the
+"one downstream failure destroys the run" anti-pattern; fixed on four levels:
+
+* **Root cause — peer-dependency ERESOLVE.** The Remotion project pins
+  `remotion` + `pixi.js` + `react@19`, whose peer graph makes stock `npm install`
+  exit non-zero. The project now writes an `.npmrc` (`legacy-peer-deps=true`) and
+  `npm install` runs with `--legacy-peer-deps` — the standard, correct resolution
+  for this exact conflict.
+* **Transient resilience.** `npm install` retries (`render.npm_install_attempts`,
+  default 3) with an `npm cache verify` between attempts, and on final failure
+  raises with the **captured npm output** so the error report is actionable, not
+  a bare exit code.
+* **Render validation.** The `npx remotion render` call captures output and
+  verifies a non-empty MP4 was produced.
+* **No lost runs (the important one).** A Remotion install/render failure now
+  **falls back to the deterministic PIL renderer** so a video still ships from
+  the work already done; the failure is recorded as a warning. `render.strict_backend=true`
+  restores hard-fail for operators who want the production renderer or nothing.
+
+Verified: offline e2e still renders (0 errors); unit tests cover the tolerant
+install flags, the retry-then-succeed path, and the captured-output failure.
+This closes the specific crash and generalizes the reviewer's "a single visual
+failure must not stop the whole orchestration" principle to the render stage.

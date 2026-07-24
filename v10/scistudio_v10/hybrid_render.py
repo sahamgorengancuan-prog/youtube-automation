@@ -47,6 +47,36 @@ def select_render_backend(
     )
 
 
+def remotion_npm_install(
+    project: str | Path,
+    attempts: int = 3,
+    timeout: float = 2400.0,
+    runner: Any = None,
+) -> None:
+    """Install the Remotion project deps robustly.
+
+    ``--legacy-peer-deps`` tolerates the peer-dependency conflicts that
+    remotion + pixi.js + react commonly raise (an ERESOLVE that otherwise exits
+    non-zero and killed a live run), and the install is retried a few times for
+    transient registry failures with an ``npm cache verify`` between tries. On
+    final failure the captured npm output is surfaced so the error is actionable
+    rather than a bare exit code. ``runner`` defaults to ``subprocess.run`` and
+    is injectable for testing.
+    """
+    run = runner or subprocess.run
+    base = ["npm", "install", "--no-audit", "--no-fund", "--legacy-peer-deps", "--loglevel=error"]
+    attempts = max(1, int(attempts))
+    last = ""
+    for i in range(attempts):
+        proc = run(base, cwd=project, capture_output=True, text=True, timeout=timeout)
+        if proc.returncode == 0:
+            return
+        last = (proc.stderr or proc.stdout or "").strip()[-600:]
+        if i < attempts - 1:
+            run(["npm", "cache", "verify"], cwd=project, capture_output=True, text=True, timeout=300)
+    raise RuntimeError(f"npm install failed after {attempts} attempt(s): {last}")
+
+
 class PILHybridRenderer:
     """Deterministic fallback renderer for hybrid raster/SVG scene packages.
 
@@ -409,6 +439,14 @@ class RemotionHybridExporter:
                     "@types/react-dom": "19.0.0",
                 },
             },
+        )
+        # Tolerate peer-dependency conflicts (remotion + pixi.js + react 19 can
+        # trip an ERESOLVE that otherwise fails `npm install`); keep installs
+        # quiet and non-interactive. Applies to every npm invocation in the
+        # project, so the render path installs cleanly on a fresh runtime.
+        (self.root / ".npmrc").write_text(
+            "legacy-peer-deps=true\nfund=false\naudit=false\nloglevel=error\n",
+            encoding="utf-8",
         )
         save_json(
             self.root / "tsconfig.json",
