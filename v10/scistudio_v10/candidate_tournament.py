@@ -34,9 +34,17 @@ class CandidateTournament:
         *,
         force: bool = False,
     ) -> CandidateTournamentResult:
-        count = max(2, int(self.config.get("candidate_count", 4)))
-        candidates = []
-        for i in range(count):
+        # Adaptive mode (opt-in): generate one candidate first and, if it is
+        # already strong on the deterministic quality prior, accept it without
+        # spending a second image — so easy scenes cost one generation, not two.
+        # With adaptive off the tournament keeps its two-candidate minimum so the
+        # comparison ranking stays meaningful.
+        requested = int(self.config.get("candidate_count", 4))
+        adaptive = bool(self.config.get("adaptive_candidates", False))
+        accept_score = float(self.config.get("adaptive_accept_score", 0.72))
+        hard_max = max(1 if adaptive else 2, requested)
+        candidates: list[CandidateFrame] = []
+        for i in range(hard_max):
             variant = brief.model_copy(deep=True)
             variant.brief_id = f"{brief.brief_id}-C{i + 1:02d}"
             variant.seed = (brief.seed or 0) + i * 9973
@@ -54,8 +62,36 @@ class CandidateTournament:
                         metrics=self._image_metrics(path),
                     )
                 )
-        if len(candidates) < 2:
-            raise RuntimeError(f"Candidate tournament needs at least two generated frames for {brief.scene_id}")
+                # Early-accept: first strong candidate ends the tournament.
+                if adaptive and self._fallback_score(candidates[-1]) >= accept_score:
+                    break
+        if not candidates:
+            raise RuntimeError(f"Candidate tournament produced no frames for {brief.scene_id}")
+        if len(candidates) == 1:
+            # Adaptive single-candidate accept — skip the comparison board/rank.
+            only = candidates[0]
+            score = CandidateScore(
+                candidate_id=only.candidate_id,
+                total_score=round(self._fallback_score(only), 4),
+                style_consistency=0.75,
+                subject_consistency=0.75,
+                composition_fitness=0.75,
+                motion_readiness=0.75,
+                causal_clarity=0.75,
+                rationale="Adaptive single-candidate accept: the first candidate met the "
+                "quality threshold, so no second image was generated.",
+            )
+            result = CandidateTournamentResult(
+                scene_id=brief.scene_id,
+                candidates=candidates,
+                scores=[score],
+                winner_id=only.candidate_id,
+                winner_path=only.image_path,
+                comparison_board="",
+                ranking_source="adaptive_single",
+            )
+            save_json(self.root / f"{brief.scene_id}.json", result)
+            return result
         board = self._board(candidates, brief.scene_id)
         scores, source = self._rank(board, candidates, architecture, shot_state, force=force)
         scores.sort(key=lambda x: (-x.total_score, x.candidate_id))

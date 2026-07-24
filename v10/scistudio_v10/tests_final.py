@@ -1986,6 +1986,126 @@ def _test_hero_asset_f7(c: Collector, base: Path) -> None:
     c.check("hero_assets.json is emitted", (base / "on" / "hero_assets.json").exists())
 
 
+def _test_adaptive_candidate_tournament(c: Collector, base: Path) -> None:
+    """Efficiency: with adaptive mode ON, a first candidate that clears the
+    quality threshold ends the tournament at ONE image (no forced second image);
+    a weak first candidate still escalates to more candidates. With adaptive OFF
+    the two-candidate minimum is preserved so the comparison ranking stays real."""
+    from PIL import Image
+
+    from .candidate_tournament import CandidateTournament
+    from .schemas import DrawingBrief, SceneIllustrationArchitecture, ShotState
+
+    base.mkdir(parents=True, exist_ok=True)
+    brief = DrawingBrief(
+        brief_id="b1",
+        scene_id="S1",
+        positive_prompt="a labelled diagram of a cell",
+        negative_prompt="blurry",
+        kontext_instruction="render the cell",
+        output_format="png",
+    )
+    arch = SceneIllustrationArchitecture(scene_id="S1")
+    shot = ShotState(scene_id="S1", first_frame_description="cell intact", last_frame_description="cell divides")
+
+    calls = {"n": 0}
+
+    class _FakeLLM:
+        # Ranking judge: return the deterministic fallback it is handed.
+        def critique_image(self, **kw: Any) -> Any:
+            return kw.get("fallback", {})
+
+    def make_gen(color: tuple[int, int, int]):
+        def gen(b: Any) -> Path:
+            calls["n"] += 1
+            out = Path(b.output_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            im = Image.new("RGB", (64, 64), (245, 244, 240))
+            # A rich, high-contrast subject -> high entropy/contrast -> strong prior.
+            for yy in range(64):
+                for xx in range(64):
+                    if (xx // 4 + yy // 4) % 2 == 0:
+                        im.putpixel((xx, yy), color)
+            im.save(out)
+            return out
+
+        return gen
+
+    # Adaptive ON + a strong first candidate -> exactly one generation.
+    calls["n"] = 0
+    t = CandidateTournament(
+        llm=None,
+        config={"candidate_count": 4, "adaptive_candidates": True, "adaptive_accept_score": 0.5},
+        root=base / "adaptive_on",
+    )
+    res = t.run(brief, arch, shot, make_gen((20, 40, 160)))
+    c.check("adaptive strong-first accepts one candidate (no forced second image)", calls["n"] == 1)
+    c.check("single-candidate result names that candidate the winner", res.winner_id == "C01"
+            and res.ranking_source == "adaptive_single")
+
+    # Adaptive OFF -> keeps the >=2 minimum even when candidate_count=1.
+    calls["n"] = 0
+    t2 = CandidateTournament(
+        llm=_FakeLLM(), config={"candidate_count": 1, "adaptive_candidates": False}, root=base / "adaptive_off"
+    )
+    res2 = t2.run(brief, arch, shot, make_gen((160, 30, 30)))
+    c.check("non-adaptive preserves the two-candidate tournament minimum", calls["n"] >= 2 and len(res2.candidates) >= 2)
+
+
+def _test_release_integrity_p0(c: Collector, base: Path) -> None:
+    """P0 release integrity: a run can prove the code it executes is the code that
+    was bundled/tested. compute_source_digest is deterministic and order-free; a
+    single edited byte changes it; verify_parity flags drift; emit_run_release
+    marks production_validated only when the live source matches the embedded
+    fingerprint and a commit is recorded."""
+    from .release_manifest import (
+        build_fingerprint,
+        compute_source_digest,
+        emit_run_release,
+        verify_parity,
+    )
+
+    pkg = base / "pkg"
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "alpha.py").write_text("x = 1\n")
+    (pkg / "beta.py").write_text("y = 2\n")
+
+    d1, n1 = compute_source_digest(pkg)
+    d2, n2 = compute_source_digest(pkg)
+    c.check("source digest is deterministic across calls", d1 == d2 and n1 == n2 == 2)
+
+    fp = build_fingerprint(pkg, pipeline_version="9.9.9")
+    c.check("fingerprint carries version + digest + module count", fp["source_bundle_sha256"] == d1
+            and fp["module_count"] == 2 and fp["pipeline_version"] == "9.9.9")
+
+    # Parity holds while untouched...
+    par = verify_parity(fp, pkg)
+    c.check("parity is OK when the source is unchanged", par["parity_ok"] is True)
+    # ...and breaks on a single edited byte.
+    (pkg / "beta.py").write_text("y = 3\n")
+    par2 = verify_parity(fp, pkg)
+    c.check("a single edited byte breaks parity (drift detected)", par2["parity_ok"] is False)
+
+    # A non-.py sidecar (the embedded fingerprint file) does not affect the digest.
+    (pkg / "_build_release.json").write_text("{}")
+    d3, n3 = compute_source_digest(pkg)
+    c.check("non-.py sidecar files are excluded from the digest", n3 == 2)
+
+    # emit_run_release: validated only when live matches embedded + commit present.
+    good = base / "good"
+    good.mkdir()
+    (good / "alpha.py").write_text("x = 1\n")
+    fp_good = build_fingerprint(good, pipeline_version="1.0.0")
+    fp_good = {**fp_good, "git_commit": "deadbeef"}  # simulate a recorded commit
+    rel = emit_run_release(good, base / "run_good", embedded=fp_good)
+    c.check("a matching live source + recorded commit is production_validated", rel["production_validated"] is True)
+    c.check("release.json is emitted", (base / "run_good" / "release.json").exists())
+
+    # No embedded fingerprint -> honestly not validated.
+    rel2 = emit_run_release(good, base / "run_none", embedded=None)
+    c.check("no embedded fingerprint -> not production_validated", rel2["production_validated"] is False)
+
+
 def _test_render_backend_select_f5(c: Collector, base: Path) -> None:
     """F5: 'auto' is the default renderer selector — it prefers the Remotion
     production path when the Node toolchain is present and degrades to the
@@ -3004,6 +3124,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_continuity_validator_p5(c, base / "continuity")
     _test_quality_gate_p6(c, base / "quality_gate")
     _test_resource_orchestrator_p7(c, base / "resource_orchestrator")
+    _test_release_integrity_p0(c, base / "release_integrity")
+    _test_adaptive_candidate_tournament(c, base / "adaptive_tournament")
     _test_render_backend_select_f5(c, base / "render_backend")
     _test_hero_asset_f7(c, base / "hero_asset")
     _test_rive_integration_optional(c, base / "rive")

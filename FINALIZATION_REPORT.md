@@ -630,3 +630,46 @@ Every P1–P9 module is exercised by the aggregate suite and rolls its artifacts
 into the pipeline lineage; the P6 gate governs publish. Providers are unchanged:
 reasoning stays OpenAI-only, images stay BFL-only. The production reliability
 roadmap (P1–P9) is now complete end to end.
+
+## 15. Addendum — external review response (release integrity + efficiency)
+
+An external review assessed the pipeline and — reviewing an **older uploaded
+notebook** — reported that `PromptSafetyRewriter` / moderation recovery were
+absent and that the notebook still threw `BFLError` directly. On the **current**
+committed notebook that is not the case: it contains `PromptSafetyRewriter` (×5
+refs), `moderation_recovery`, `build_visual_router`, and the full P1–P9
+reliability layer + F5/F7 modules; `flux_studio.generate` delegates to the
+provider router. The review's own top finding explains the discrepancy — there
+was **no way to tell which build you were running**. That is now fixed.
+
+* **P0 — Release integrity / notebook-source parity (`release_manifest.py`).**
+  The single highest-value gap the review identified, and it was real: nothing
+  proved the notebook matched the tested source. Now `build_linear_full`
+  computes a build fingerprint — `{pipeline_version, git_commit,
+  source_bundle_sha256, module_count, builder_sha256, built_at}` — over the exact
+  `%%writefile scistudio_v10/*.py` bodies the notebook materializes, and stamps
+  it next to the modules as `scistudio_v10/_build_release.json`. At run start the
+  pipeline re-hashes the materialized modules and writes
+  `00_release/release.json` with `parity_ok` and `production_validated` (true
+  only when the live source matches the embedded fingerprint **and** a commit is
+  recorded), warning loudly on drift. Verified end-to-end: an offline run emitted
+  `parity_ok=true` with the built commit. A stale or hand-edited notebook now
+  fails parity instead of masquerading as validated.
+* **Adaptive candidate tournament.** The review flagged `count = max(2,
+  candidate_count)` forcing ≥2 images per scene. The tournament now honours
+  `candidate_count` and, with `adaptive_candidates=true`, generates one candidate
+  first and accepts it when its deterministic quality prior clears
+  `adaptive_accept_score` — one image for an easy scene, escalating only when the
+  first is weak. With adaptive off the two-candidate minimum is preserved so the
+  comparison ranking stays meaningful.
+
+**On the rest of the review:** its P1 (artifact graph), P3 (blocking
+hierarchical QC), P4 (audio-first timeline), P5 (active continuity + scientific
+validators), P7 (cost/resource orchestrator) and metadata/publishing map to work
+already built and present in the current notebook (roadmap P1–P9 above) — the
+review predated those commits. Genuinely still open and correctly called out:
+a **native YouTube Data API publisher** (upload/metadata/scheduling/polling) —
+the metadata *package* is built (P9) but only local-archive / Upload-Post
+adapters exist; and **deeper per-subprocess artifact granularity** inside a scene
+(candidate/rig/render as separate cached nodes) beyond the current stage-level
+graph. Both are noted as the next real increments; neither is claimed as done.
