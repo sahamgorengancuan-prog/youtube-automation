@@ -1894,6 +1894,99 @@ def _test_resource_orchestrator_p7(c: Collector, base: Path) -> None:
     )
 
 
+def _test_topic_engine_p8(c: Collector, base: Path) -> None:
+    """P8: the autonomous topic engine proposes candidates, scores each on
+    richness/visual/novelty/appeal/safety, prefers an unproduced high-appeal
+    question over a bare or already-made one, and emits its reasoning."""
+    from .topic_engine import TopicEngine
+    from .utils import save_json
+
+    base.mkdir(parents=True, exist_ok=True)
+
+    # A rich, visual, curiosity question should outscore a bare trivia string.
+    eng = TopicEngine(None, {}, base)
+    rich = eng.score_topic("What happens to the human body in extreme gravity?")
+    bare = eng.score_topic("water")
+    c.check("a rich visual question outscores a bare keyword", rich["composite"] > bare["composite"])
+    c.check("all five scoring axes are present", set(rich["axes"]) == {
+        "scientific_richness", "visual_potential", "novelty", "audience_appeal", "safety"
+    })
+
+    # A moderation-risky framing is penalized on the safety axis.
+    risky = eng.score_topic("How does a gory violent weapon wound the body?")
+    safe = eng.score_topic("How does the body heal a broken bone over time?")
+    c.check("a moderation-risky framing scores lower on safety", risky["axes"]["safety"] < safe["axes"]["safety"])
+
+    # propose(): deterministic candidates, ranked, one selected, artifact emitted.
+    rep = eng.propose(seed="the deep ocean", count=5)
+    c.check("propose returns scored candidates", len(rep["candidates"]) >= 3)
+    c.check("propose selects the top-ranked candidate", rep["selected"] is not None
+            and rep["selected"]["composite"] == max(s["composite"] for s in rep["candidates"]))
+    c.check("topic_candidates.json is emitted", (base / "topic_candidates.json").exists())
+
+    # Novelty: a topic already in history is de-prioritized (not selected) when
+    # fresh alternatives exist.
+    hist = base / "history.json"
+    save_json(hist, ["What would you see inside the deep ocean?"])
+    eng2 = TopicEngine(None, {"history_path": str(hist)}, base / "h")
+    seen = eng2.score_topic("What would you see inside the deep ocean?")
+    c.check("a produced topic is marked already_produced with zero novelty",
+            seen["already_produced"] is True and seen["axes"]["novelty"] == 0.0)
+    rep2 = eng2.propose(seed="the deep ocean", count=5)
+    c.check("engine does not re-select an already-produced topic when alternatives exist",
+            rep2["selected"] is None or rep2["selected"]["already_produced"] is False)
+
+
+def _test_metadata_engine_p9(c: Collector, base: Path) -> None:
+    """P9: the metadata engine assembles a real upload package — title (capped),
+    sourced description, keyword tags, timestamp chapters starting at 0:00, and a
+    thumbnail brief — from the script/research/storyboard artifacts, and emits it."""
+    from types import SimpleNamespace as NS
+
+    from .metadata_engine import MetadataEngine
+
+    base.mkdir(parents=True, exist_ok=True)
+    script = NS(
+        title="What Zero Gravity Does to Your Body",
+        hook="What happens to a human body in zero gravity?",
+        closing="And that is why astronauts train so hard.",
+    )
+    research = NS(
+        summary="In microgravity the body changes in weeks: fluids shift and bones weaken.",
+        facts=[
+            NS(claim="Astronauts can lose 1-2% of bone mass per month in microgravity."),
+            NS(claim="Body fluids shift toward the head, puffing the face."),
+        ],
+        sources=[
+            NS(title="NASA Human Research", url="https://www.nasa.gov/hrp", author="NASA"),
+            NS(title="ESA Bone Study", url="https://www.esa.int/bone", author="ESA"),
+        ],
+    )
+    story = NS(
+        fps=30,
+        scenes=[
+            NS(scene_id="S1", duration_s=6.0, headline="Fluid shift", narration="Fluids move up."),
+            NS(scene_id="S2", duration_s=7.5, headline="Bone loss", narration="Bones weaken."),
+            NS(scene_id="S3", duration_s=5.0, headline="Recovery", narration="Back on Earth."),
+        ],
+    )
+
+    pkg = MetadataEngine(None, {}, base).build(
+        "What happens to a human body in zero gravity?", script, research, story
+    )
+    c.check("title is present and within the 100-char cap", 0 < len(pkg["title"]) <= 100)
+    c.check("description embeds a key fact from research",
+            "bone mass" in pkg["description"] or "fluids" in pkg["description"].lower())
+    c.check("description lists sources with urls", "nasa.gov" in pkg["description"])
+    c.check("tags are non-trivial keyword list", len(pkg["tags"]) >= 5 and "science" in pkg["tags"])
+    c.check("chapters cover every scene", len(pkg["chapters"]) == 3)
+    c.check("the first chapter starts at 0:00 (YouTube requires it)", pkg["chapters"][0]["start"] == "0:00")
+    c.check("later chapters advance in time", pkg["chapters"][1]["start_s"] == 6.0)
+    c.check("thumbnail brief carries a short overlay + 9:16 aspect",
+            pkg["thumbnail"]["overlay_text"] and pkg["thumbnail"]["aspect"] == "9:16")
+    c.check("metadata.json is emitted", (base / "metadata.json").exists())
+
+
 def _test_continuity_validator_p5(c: Collector, base: Path) -> None:
     """P5: the active continuity validator flags causal-state regressions (a
     changed/damaged state that silently resets), character size jumps and
@@ -2793,6 +2886,8 @@ def run_final_validation_tests(root: str | Path | None = None) -> dict[str, Any]
     _test_continuity_validator_p5(c, base / "continuity")
     _test_quality_gate_p6(c, base / "quality_gate")
     _test_resource_orchestrator_p7(c, base / "resource_orchestrator")
+    _test_topic_engine_p8(c, base / "topic_engine")
+    _test_metadata_engine_p9(c, base / "metadata_engine")
     _test_claim_graph_p3(c, base / "claim_graph")
     _test_visual_provider_router(c, base / "visual_router")
     _test_moderation_recovery(c, base / "moderation")

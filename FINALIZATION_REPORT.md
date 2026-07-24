@@ -587,7 +587,29 @@ lineage artifacts; none is a stub.
   cost estimate, budget affordance/exhaustion + retry cap, parallel scene wave +
   GPU gating, real concurrency, budget-limited dispatch, and plan emission.
 
-Every P1–P7 module is exercised by the aggregate suite and rolls its artifacts
-into the P6 publish gate. Providers are unchanged: reasoning stays OpenAI-only,
-images stay BFL-only. Still ahead on the roadmap: **P8 autonomous topic engine**
-and **P9 automated metadata + publishing**.
+* **P8 — Autonomous topic engine (`topic_engine.py`).** Proposes candidate
+  topics (LLM brainstorm in production; deterministic domain × question-frame
+  offline), scores each on `scientific_richness` / `visual_potential` /
+  `novelty` / `audience_appeal` / `safety` with configurable weights, and
+  selects the strongest **unproduced** one. A history file drives novelty, so an
+  already-made topic is fully penalized and not re-selected while fresh options
+  remain; moderation-risky framings are penalized on the safety axis, so the run
+  is less likely to crash later on a rejected image prompt. The pipeline records
+  why *this* topic was chosen (its score + alternatives) at
+  `00_topic_engine/topic_provenance.json` (opt-in); `propose()` emits
+  `topic_candidates.json`.
+* **P9 — Automated metadata + publishing (`metadata_engine.py`).** Assembles the
+  full upload package from artifacts the pipeline already produced — title (from
+  the script, capped at YouTube's 100 chars), a **sourced** description (research
+  summary + key facts + source URLs + hashtags), keyword tags, **timestamp
+  chapters** from the storyboard scene durations (first chapter guaranteed at
+  `0:00`), and a 9:16 thumbnail brief. Deterministic assembly (optional LLM
+  polish is opt-in). Emitted at `23_metadata/metadata.json` and **merged into the
+  publisher metadata**, so the existing LocalArchive / Upload-Post adapters ship a
+  real title/description/tags/chapters instead of `{title, topic, job_id}` —
+  still behind the P6 publish gate.
+
+Every P1–P9 module is exercised by the aggregate suite and rolls its artifacts
+into the pipeline lineage; the P6 gate governs publish. Providers are unchanged:
+reasoning stays OpenAI-only, images stay BFL-only. The production reliability
+roadmap (P1–P9) is now complete end to end.
