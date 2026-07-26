@@ -1,0 +1,12 @@
+# Inti framework (store, batching, governor, dashboard, notifier) hanya butuh
+# pustaka standar Python 3.10+. Semua di bawah ini opsional per fitur.
+
+# Mode live — klien MTProto untuk akun user.
+telethon>=1.36,<2.0
+
+# Triage LLM (opsional). Tanpa ini, triage memakai aturan deterministik.
+anthropic>=0.69
+
+# Pengujian.
+pytest>=8.0
+pytest-asyncio>=0.23

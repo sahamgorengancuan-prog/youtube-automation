@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram Scraper Center</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot" id="pulse"></span>
+    <div>
+      <h1>Telegram Scraper Center</h1>
+      <p class="brand-sub" id="campaign-line">memuat…</p>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <span class="chip" id="mode-chip" title="Mode simulate tidak menyentuh Telegram sama sekali">—</span>
+    <span class="chip" id="phase-chip">—</span>
+    <button class="btn btn-ghost" id="theme-toggle" title="Ganti tema">◐</button>
+  </div>
+</header>
+
+<div class="controls">
+  <button class="btn btn-primary" data-action="start">▶ Jalankan</button>
+  <button class="btn" data-action="pause">⏸ Jeda</button>
+  <button class="btn" data-action="resume">⏵ Lanjut</button>
+  <button class="btn btn-danger" data-action="stop">⏹ Stop</button>
+  <button class="btn btn-ghost" data-action="replan">⟳ Susun ulang batch</button>
+  <span class="spacer"></span>
+  <span class="toast" id="toast"></span>
+</div>
+
+<main>
+  <!-- Blokir validasi tampil paling atas kalau ada -->
+  <section class="banner banner-error" id="guard-banner" hidden>
+    <strong>Campaign diblokir oleh validasi</strong>
+    <ul id="guard-reasons"></ul>
+  </section>
+  <section class="banner banner-warn" id="warn-banner" hidden>
+    <strong>Perhatian</strong>
+    <ul id="warn-reasons"></ul>
+  </section>
+
+  <!-- KPI -->
+  <section class="kpi-row" aria-label="Ringkasan">
+    <article class="kpi">
+      <span class="kpi-label">Progres</span>
+      <span class="kpi-value" id="kpi-progress">0%</span>
+      <div class="bar"><div class="bar-fill" id="progress-bar"></div></div>
+    </article>
+    <article class="kpi">
+      <span class="kpi-label">Berhasil diundang</span>
+      <span class="kpi-value ok" id="kpi-invited">0</span>
+      <span class="kpi-sub" id="kpi-rate">— / jam</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-label">Dalam antrean</span>
+      <span class="kpi-value" id="kpi-queued">0</span>
+      <span class="kpi-sub" id="kpi-pending">0 belum dijadwalkan</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-label">Gagal &amp; dilewati</span>
+      <span class="kpi-value bad" id="kpi-failed">0</span>
+      <span class="kpi-sub" id="kpi-privacy">0 tertutup privasi</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-label">Agent siap</span>
+      <span class="kpi-value" id="kpi-agents">0</span>
+      <span class="kpi-sub" id="kpi-limited">0 dilimitasi</span>
+    </article>
+  </section>
+
+  <div class="grid">
+    <!-- Agent -->
+    <section class="card span-2">
+      <header class="card-head">
+        <h2>Agent</h2>
+        <span class="hint">Agent yang dilimitasi otomatis di-skip sampai kembali free</span>
+      </header>
+      <div id="agents" class="agent-grid"></div>
+    </section>
+
+    <!-- Batch -->
+    <section class="card">
+      <header class="card-head">
+        <h2>Batch &amp; sesi</h2>
+        <span class="hint" id="plan-hint">—</span>
+      </header>
+      <div id="batches" class="batch-list"></div>
+    </section>
+
+    <!-- Source -->
+    <section class="card">
+      <header class="card-head"><h2>Source</h2></header>
+      <table class="table" id="sources-table">
+        <thead><tr><th>Grup</th><th>Diverifikasi</th><th class="num">Member</th><th class="num">Terambil</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Error taxonomy -->
+    <section class="card">
+      <header class="card-head">
+        <h2>Error (24 jam)</h2>
+        <span class="hint">dikelompokkan per kode</span>
+      </header>
+      <div id="errors" class="error-list"></div>
+    </section>
+
+    <!-- Triage -->
+    <section class="card">
+      <header class="card-head">
+        <h2>Keputusan triage</h2>
+        <span class="chip chip-sm" id="llm-chip">—</span>
+      </header>
+      <div id="triage" class="triage-list"></div>
+    </section>
+
+    <!-- Log -->
+    <section class="card span-2">
+      <header class="card-head">
+        <h2>Log kejadian</h2>
+        <div class="filters" id="log-filters">
+          <button class="pill is-active" data-sev="all">Semua</button>
+          <button class="pill" data-sev="info">Info</button>
+          <button class="pill" data-sev="warn">Warning</button>
+          <button class="pill" data-sev="error">Error</button>
+          <label class="follow"><input type="checkbox" id="follow" checked> ikuti</label>
+        </div>
+      </header>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <span id="foot-status">—</span>
+    <span>Framework ini tidak mengirim pesan pribadi ke siapa pun · lihat docs/SAFETY.md</span>
+  </footer>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

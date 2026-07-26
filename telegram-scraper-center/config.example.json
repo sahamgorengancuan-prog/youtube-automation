@@ -1,0 +1,70 @@
+{
+  "campaign": {
+    "name": "Migrasi Komunitas Q3",
+    "target": "@grup_tujuan_saya",
+    "sources": [
+      "@grup_lama_saya",
+      "@grup_cabang_saya"
+    ]
+  },
+
+  "agents": [
+    { "label": "admin-1", "session": "sessions/admin1", "phone": "+628110000001" },
+    { "label": "admin-2", "session": "sessions/admin2", "phone": "+628110000002" },
+    { "label": "admin-3", "session": "sessions/admin3", "phone": "+628110000003" },
+    { "label": "admin-4", "session": "sessions/admin4", "phone": "+628110000004" },
+    { "label": "admin-5", "session": "sessions/admin5", "phone": "+628110000005" },
+    { "label": "admin-6", "session": "sessions/admin6", "phone": "+628110000006" }
+  ],
+
+  "telegram": {
+    "mode": "simulate",
+    "api_id_env": "TSC_API_ID",
+    "api_hash_env": "TSC_API_HASH",
+    "session_dir": "sessions",
+    "simulate_seed": 7,
+    "simulate_members_per_source": 1200
+  },
+
+  "limits": {
+    "session_size": 500,
+    "min_batch_size": 25,
+    "max_batch_size": 1000,
+    "invites_per_day_per_agent": 40,
+    "invites_per_hour_per_agent": 15,
+    "min_gap_seconds": 45,
+    "gap_jitter_seconds": 25,
+    "flood_wait_margin_seconds": 15,
+    "peer_flood_park_hours": 24,
+    "max_consecutive_failures": 5,
+    "max_attempts_per_member": 2,
+    "scrape_page_size": 200
+  },
+
+  "llm": {
+    "enabled": true,
+    "model": "claude-opus-5",
+    "effort": "medium",
+    "api_key_env": "ANTHROPIC_API_KEY",
+    "max_calls_per_hour": 40,
+    "timeout_seconds": 30
+  },
+
+  "notifier": {
+    "enabled": false,
+    "bot_token_env": "TSC_BOT_TOKEN",
+    "chat_id": "",
+    "min_severity": "info",
+    "throttle_seconds": 20,
+    "heartbeat_minutes": 30
+  },
+
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 8787,
+    "open_browser": true
+  },
+
+  "database": "data/tsc.db",
+  "min_agents": 5
+}
