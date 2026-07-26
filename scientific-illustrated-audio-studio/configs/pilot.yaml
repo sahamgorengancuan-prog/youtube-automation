@@ -1,0 +1,5 @@
+run_mode: pilot
+budgets:
+  max_image_calls: 14
+  max_vision_calls: 40
+  max_tts_characters: 3000

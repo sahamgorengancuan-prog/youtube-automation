@@ -1,0 +1,26 @@
+{
+  "episode_id": "what-happens-if-it-rains-nonstop-for-one-year",
+  "beat_roles": [
+    "cold_open",
+    "fact_1",
+    "fact_2",
+    "fact_3",
+    "explanation",
+    "scale_example",
+    "gasp_reveal",
+    "payoff"
+  ],
+  "scene_ids": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "S08"
+  ],
+  "pilot_scene_count": 4,
+  "catchphrase_count": 1,
+  "est_duration_s": 31.35
+}

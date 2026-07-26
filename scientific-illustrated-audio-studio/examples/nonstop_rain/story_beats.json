@@ -1,0 +1,84 @@
+[
+  {
+    "beat_id": "B01",
+    "role": "cold_open",
+    "summary": "cold_open beat for What happens if it rains nonstop for one year?",
+    "narration": "Imagine what happens if it rains nonstop for one year \u2014 and it doesn't stop.",
+    "emotional_from": "normal",
+    "emotional_to": "impossible",
+    "claim_refs": []
+  },
+  {
+    "beat_id": "B02",
+    "role": "fact_1",
+    "summary": "fact_1 beat for What happens if it rains nonstop for one year?",
+    "narration": "At first, everything looks almost normal. Almost.",
+    "emotional_from": "recognition",
+    "emotional_to": "concern",
+    "claim_refs": [
+      "C02"
+    ]
+  },
+  {
+    "beat_id": "B03",
+    "role": "fact_2",
+    "summary": "fact_2 beat for What happens if it rains nonstop for one year?",
+    "narration": "Then the ground itself stops cooperating.",
+    "emotional_from": "concern",
+    "emotional_to": "surprise",
+    "claim_refs": [
+      "C03"
+    ]
+  },
+  {
+    "beat_id": "B04",
+    "role": "fact_3",
+    "summary": "fact_3 beat for What happens if it rains nonstop for one year?",
+    "narration": "And the systems we built quietly hit their limits.",
+    "emotional_from": "surprise",
+    "emotional_to": "anticipation",
+    "claim_refs": [
+      "C01"
+    ]
+  },
+  {
+    "beat_id": "B05",
+    "role": "explanation",
+    "summary": "explanation beat for What happens if it rains nonstop for one year?",
+    "narration": "Here's the mechanism your gut missed.",
+    "emotional_from": "confusion",
+    "emotional_to": "understanding",
+    "claim_refs": [
+      "C02"
+    ]
+  },
+  {
+    "beat_id": "B06",
+    "role": "scale_example",
+    "summary": "scale_example beat for What happens if it rains nonstop for one year?",
+    "narration": "Scale it up, and the numbers get absurd fast.",
+    "emotional_from": "understanding",
+    "emotional_to": "awe",
+    "claim_refs": []
+  },
+  {
+    "beat_id": "B07",
+    "role": "gasp_reveal",
+    "summary": "gasp_reveal beat for What happens if it rains nonstop for one year?",
+    "narration": "But the real surprise isn't the water at all.",
+    "emotional_from": "awe",
+    "emotional_to": "gasp",
+    "claim_refs": [
+      "C01"
+    ]
+  },
+  {
+    "beat_id": "B08",
+    "role": "payoff",
+    "summary": "payoff beat for What happens if it rains nonstop for one year?",
+    "narration": "So next time it rains, you'll know what's really at stake.",
+    "emotional_from": "gasp",
+    "emotional_to": "satisfying click",
+    "claim_refs": []
+  }
+]

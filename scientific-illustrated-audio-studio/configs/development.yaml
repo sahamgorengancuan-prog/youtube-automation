@@ -1,0 +1,7 @@
+run_mode: plan
+logging:
+  level: "DEBUG"
+budgets:
+  max_image_calls: 6
+  max_vision_calls: 12
+  max_tts_characters: 2000
