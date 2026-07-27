@@ -46,8 +46,13 @@ from sias.qc.report import build_report, write_report
 from sias.qc.final_av import check_final_av
 
 from .config import load_studio_config
-from .qc.placeholders import make_placeholder, reject_placeholders_in_production
+from .qc.placeholders import make_preview_panel, reject_placeholders_in_production
 from .studio import Studio
+
+
+# Panel geometry per delivery format. The institutional layout is expressed in
+# fractions, so one PanelSpec composes any of these without a second ruleset.
+ASPECTS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1440, 1440)}
 
 
 def _tone_bed(path: Path, seconds: float, rate: int = 16000) -> Path:
@@ -86,13 +91,44 @@ def _segments_for_srt(scenes: list[SceneSpec], timings) -> list[AlignmentSegment
     return out
 
 
+def _compose_institutional(scene: SceneSpec, index: int, experiment_id: str, art: Path,
+                           out_path: Path, width: int, height: int) -> Path:
+    """Typeset the report furniture over the generated diagram.
+
+    The image model never draws a glyph; the frame, status block, instrument
+    readout and headline are composited here so they are identical on every
+    panel of every episode."""
+    from sias.render.hud import PanelSpec, compose_panel
+    from sias.style.institutional import (
+        derive_background,
+        derive_headline,
+        derive_headline_anchor,
+        derive_readout,
+    )
+
+    readout = derive_readout(scene)
+    display = index == 0 or scene.beat_role == "cold_open"
+    spec = PanelSpec(
+        experiment_id=experiment_id,
+        status_lines=["Simulation Status:", "Running"],
+        readout={"label": readout["label"], "value": readout["value"] or experiment_id,
+                 "unit": readout["unit"], "alert": readout["alert"]},
+        headline=derive_headline(scene, display=display),
+        headline_style="display" if display else "label",
+        headline_anchor=derive_headline_anchor(scene, index),
+        background=derive_background(scene),
+    )
+    return compose_panel(spec, out_path, width, height, illustration=art)
+
+
 def _live_scene_image(scene: SceneSpec, bible: StyleBible, adapters: dict, studio: Studio,
-                      out_path: Path, width: int, height: int, log) -> Path:
-    prompt = compile_prompt(scene, bible)["text"]
+                      out_path: Path, width: int, height: int, log, index: int = 0) -> Path:
+    prompt = compile_prompt(scene, bible, index=index)["text"]
     seed = stable_seed(studio.cfg.engine.visual.seed_base, scene.scene_id, 0)
     studio.budget.charge("image", 1, f"scene {scene.scene_id}")
+    art_path = out_path.with_name(out_path.stem + "_diagram.png")
     img = adapters["bfl"].generate(prompt, studio.cfg.engine.visual.production_model,
-                                   seed, width, height, out_path)
+                                   seed, width, height, art_path)
     verify_image(img)
     if adapters.get("openrouter"):
         studio.budget.charge("vision", 2, f"dual review {scene.scene_id}")
@@ -114,9 +150,10 @@ def _live_scene_image(scene: SceneSpec, bible: StyleBible, adapters: dict, studi
                 verdict["repair_instructions"] or verdict["hard_fail_reasons"])
             studio.budget.charge("image", 1, f"repair {scene.scene_id}")
             img = adapters["bfl"].generate(fix, studio.cfg.engine.visual.production_model,
-                                           seed + 1, width, height, out_path)
+                                           seed + 1, width, height, art_path)
             verify_image(img)
-    return Path(img)
+    return _compose_institutional(scene, index, studio.experiment_id, Path(img),
+                                  out_path, width, height)
 
 
 def run_all(
@@ -129,6 +166,7 @@ def run_all(
     preview_scale: float = 0.5,
     human_gates_approved: bool = False,
     bfl_model: str = "",
+    aspect: str = "",
     log=print,
     adapters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -143,7 +181,11 @@ def run_all(
         overrides={"project": {"topic": topic, "language": language},
                    "audio": {"voice": voice},
                    "budgets": {"max_image_calls": max_image_calls},
-                   **({"visual": {"production_model": bfl_model}} if bfl_model else {})},
+                   **({"visual": {"production_model": bfl_model}} if bfl_model else {}),
+                   **({"project": {"topic": topic, "language": language,
+                                   "aspect_ratio": aspect,
+                                   "width": ASPECTS[aspect][0],
+                                   "height": ASPECTS[aspect][1]}} if aspect in ASPECTS else {})},
         colab={"run_mode": "plan", "arm_paid_calls": live},
     )
     studio = Studio(cfg, workspace)
@@ -180,13 +222,14 @@ def run_all(
     if not live_images:
         width, height = int(width * preview_scale), int(height * preview_scale)
     images: dict[str, str] = {}
-    for scene in scenes:
+    for index, scene in enumerate(scenes):
         out_path = episode_dir / "scenes" / scene.scene_id / f"{scene.scene_id}.png"
         if live_images:
-            img = _live_scene_image(scene, bible, adapters, studio, out_path, width, height, log)
+            img = _live_scene_image(scene, bible, adapters, studio, out_path,
+                                    width, height, log, index=index)
         else:
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            img = make_placeholder(out_path, f"{scene.scene_id} · {scene.beat_role}", width, height)
+            img = make_preview_panel(out_path, scene, index, studio.experiment_id, width, height)
         images[scene.scene_id] = str(img)
     log(f"[3/10] IMAGES OK — {len(images)} {'BFL illustrations' if live_images else 'watermarked preview panels'}")
 

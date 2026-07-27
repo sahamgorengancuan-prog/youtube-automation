@@ -79,7 +79,7 @@ def test_payload_carries_the_engine_the_config_and_the_preflight(notebook):
 def test_inputs_stay_minimal_and_defaults_stay_locked(notebook):
     form = next(s for s in _code_cells(notebook) if "@param" in s)
     params = re.findall(r"^(\w+)\s*=.*?#\s*@param", form, flags=re.MULTILINE)
-    assert params == ["TOPIC", "LANGUAGE", "RUN_LIVE", "HUMAN_GATES_APPROVED"]
+    assert params == ["TOPIC", "LANGUAGE", "ASPECT", "RUN_LIVE", "HUMAN_GATES_APPROVED"]
     for locked in ("bfl_model", "voice", "max_image_calls", "preview_scale", "workspace"):
         assert f'"{locked}"' in form, f"{locked} should be a locked default, not a prompt"
     # No open-source/API backend choice is exposed to the user.

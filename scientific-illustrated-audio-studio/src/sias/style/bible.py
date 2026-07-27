@@ -39,6 +39,12 @@ FORBIDDEN = [
 
 
 def build_style_bible(cfg: SIASConfig) -> StyleBible:
+    # One dispatch point: every caller (orchestrator, agent registry, notebook)
+    # gets the institutional identity when config selects it.
+    from .institutional import IDENTITY_NAME, build_institutional_bible
+
+    if cfg.visual.identity_name == IDENTITY_NAME:
+        return build_institutional_bible(cfg)
     return StyleBible(
         identity_name=cfg.visual.identity_name,
         palette=dict(cfg.visual.palette),

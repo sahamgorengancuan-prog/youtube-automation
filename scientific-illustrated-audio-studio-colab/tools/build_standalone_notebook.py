@@ -108,6 +108,10 @@ subtitle → QC teknis → Diamond Editorial Gate → manifest → ZIP.
 
 * **Standalone**: seluruh kode mesin SIAS tertanam di dalam notebook ini. Tidak membaca
   GitHub, tidak mengunduh kode proyek dari mana pun — semuanya dipasang di Colab.
+* **Identitas visual terkunci**: *SIAS Institutional Lab Notebook* — panel laporan putih,
+  bingkai tipis, blok status kiri-atas, pembacaan instrumen kanan-atas, judul kapital tebal,
+  dan diagram vektor datar berpalet tertutup. **Seluruh huruf dan angka di-typeset oleh kode**,
+  bukan oleh model gambar, sehingga tidak ada lagi salah eja seperti "STOPPED STOPPED SPINNING".
 * **Tanpa API key** → selesai penuh sebagai **PREVIEW** ber-watermark, **0 biaya**.
 * **Dengan key + `RUN_LIVE = True`** → episode LIVE (gambar BFL, narasi OpenAI TTS,
   QC ganda Qwen VL + Gemini 2.5 Flash).
@@ -127,6 +131,8 @@ CELL_INPUTS = '''\
 # @title 1️⃣ Isian — hanya empat, sisanya sudah optimal { display-mode: "form" }
 TOPIC = "What happens if it rains nonstop for one year?"  # @param {type:"string"}
 LANGUAGE = "en"  # @param ["en", "id"]
+# 16:9 is the Institutional Lab Notebook reference format; 9:16 for shorts.
+ASPECT = "16:9"  # @param ["16:9", "9:16", "1:1"]
 # LIVE memakai API berbayar (BFL + OpenAI + OpenRouter). False = PREVIEW gratis.
 RUN_LIVE = False  # @param {type:"boolean"}
 # Setel True HANYA setelah Anda benar-benar meninjau hasilnya (hook, gaya, karakter,
@@ -144,7 +150,7 @@ LOCKED = {
     "preview_scale": 0.5,            # render preview setengah resolusi (cepat, gratis)
 }
 print("Topik :", TOPIC)
-print("Bahasa:", LANGUAGE)
+print("Bahasa:", LANGUAGE, "· Rasio:", ASPECT)
 print("Mode  :", "LIVE (berbayar)" if RUN_LIVE else "PREVIEW (gratis, watermark)")
 print("Kunci :", ", ".join(f"{k}={v}" for k, v in LOCKED.items()))
 '''
@@ -238,6 +244,7 @@ RESULT = run_all(
     preview_scale=LOCKED["preview_scale"],
     human_gates_approved=HUMAN_GATES_APPROVED,
     bfl_model=LOCKED["bfl_model"],
+    aspect=ASPECT,
 )
 
 print()

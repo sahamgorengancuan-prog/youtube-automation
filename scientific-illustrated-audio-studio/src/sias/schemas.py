@@ -101,6 +101,13 @@ class SceneSpec(BaseModel):
     continuity_refs: list[str] = Field(default_factory=list)
     actual_start_s: float | None = None
     actual_end_s: float | None = None
+    # Institutional panel contract. `panel_metric` carries a real figure only
+    # when an evidence-backed claim supplies one — {label, value, unit, alert};
+    # left empty the compositor shows a simulation status instead of inventing
+    # a measurement. `panel_background` is light | night | split_right.
+    panel_title: str = ""
+    panel_metric: dict[str, str] = Field(default_factory=dict)
+    panel_background: str = ""
 
 
 class StyleBible(BaseModel):

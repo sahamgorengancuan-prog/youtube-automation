@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from sias.filesystem import slugify
+from sias.filesystem import sha256_text, slugify
 from sias.pipeline.orchestrator import Orchestrator
 from sias.schemas import RunBudget
 
@@ -45,6 +45,10 @@ class Studio:
         self.adapters = adapters or {}
         topic = cfg.engine.project.topic or cfg.engine.project.title
         self.episode_id = slugify(topic)
+        # Stable lab-report number for the panel HUD: same topic → same
+        # "Experiment #NNN" on every rerun, which is what makes an episode look
+        # like one filed experiment rather than twelve unrelated cards.
+        self.experiment_id = "#%03d" % (int(sha256_text(self.episode_id)[:6], 16) % 900 + 1)
         self.state: EpisodeState = load_or_create(self.workspace, self.episode_id, topic)
         self.budget = BudgetGuardian(
             RunBudget(

@@ -23,7 +23,7 @@ story:
   first_payoff_deadline_s: 12
 
 visual:
-  identity_name: "Scientific Notebook Cartoon"
+  identity_name: "SIAS Institutional Lab Notebook"
   draft_model: "flux-2-klein-9b"
   production_model: "flux-2-pro"
   premium_model: "flux-2-max"
@@ -34,14 +34,18 @@ visual:
   max_reference_images: 8
   output_format: "png"
   seed_base: 270726
+  # Closed institutional palette — see sias.style.institutional.PALETTE.
   palette:
-    ink: "#252525"
-    paper: "#F4EEDC"
-    primary: "#2F6F8F"
-    attention: "#E48A3A"
-    danger: "#C94C4C"
-    nature: "#5F8A55"
-    secondary: "#8A73A8"
+    paper: "#FFFFFF"
+    ink: "#14161A"
+    primary: "#3E7EB8"
+    primary_soft: "#B9D5EA"
+    graphite: "#3C4046"
+    steel: "#7C8288"
+    mist: "#E4E6E8"
+    night: "#23262B"
+    alert: "#C0392B"
+    warn: "#F2C744"
 
 vision:
   approval_threshold: 0.82

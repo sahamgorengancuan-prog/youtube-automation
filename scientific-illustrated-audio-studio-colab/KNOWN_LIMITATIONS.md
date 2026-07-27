@@ -35,3 +35,17 @@
 10. **The standalone notebook is a snapshot.** Its embedded payload is the repo
     at build time. `test_payload_is_in_sync_with_the_repo_sources` fails the
     moment the sources move ahead of it — rebuild with `make standalone`.
+11. **PREVIEW headlines are sentence fragments, not editorial titles.** With no
+    keys the planner emits scaffold narration, so a panel reads
+    `GROUND STOPS COOPERATING` where a live run (whose story agent fills
+    `SceneSpec.panel_title`) would read `ROTATION SPEED`. The layout, typography,
+    safe zones and HUD you approve in PREVIEW are exactly what LIVE reproduces —
+    only the words and the artwork change.
+12. **Preview schematics are five stand-in diagrams, not art direction.** Globe,
+    globe-with-rotation, wind-over-city, water-terrain and an icon grid, chosen
+    by keyword and rotated when a scene has no distinguishing subject. They exist
+    to prove composition and safe zones, never to suggest what BFL should draw.
+13. **Fonts are resolved at render time.** Liberation Sans (Helvetica metrics) is
+    preferred, then DejaVu, then FreeSans; Colab ships all three. On an image
+    with none, `compose_panel` raises `RenderError` naming the packages rather
+    than silently substituting a different typeface.

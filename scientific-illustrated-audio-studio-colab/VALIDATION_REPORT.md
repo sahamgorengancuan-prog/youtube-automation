@@ -73,3 +73,39 @@ Both were unreachable from PREVIEW and would have crashed a real paid run.
    Fixed with `render.ffmpeg.quantized_frames`, which derives each clip's frame
    count from *cumulative* timeline positions and pins it with `-frames:v`, so
    the clips always sum to the rounded total (Δ now 0.0 s).
+
+## Addendum — v5 Institutional Lab Notebook visual identity
+
+Redesign of the visual identity to the approved reference sheet. Full policy in
+`docs/visual_policy.md`.
+
+| Check | Command | Result |
+|---|---|---|
+| Identity dispatch, closed palette, derivations, compositor, prompt, rubrics | `pytest tests/unit/test_institutional_identity.py` | **33/33 PASS** |
+| One spec composes every delivery format | `test_panel_composes_in_both_orientations` | **PASS** — 16:9, 9:16, 1:1 from the same `PanelSpec` |
+| Headline never overflows the safe margin | `test_headline_never_overflows_the_safe_margin` | **PASS** — long titles shrink, never clip |
+| Split panel keeps the headline on the white side | `test_split_panel_headline_stays_on_the_white_side` | **PASS** — no ink in the dark headline band |
+| Readout never fabricates a measurement | `test_readout_without_a_metric_reports_status_not_a_number` | **PASS** — no digits without `panel_metric` |
+| Prompt forbids all typography and spells out the palette | `test_institutional_prompt_forbids_typography_and_locks_the_palette` | **PASS** |
+| Legacy identity still compiles | `test_legacy_identity_still_compiles_its_own_prompt` | **PASS** — v5 is a dispatch, not a deletion |
+| Engine suite | `pytest -q` | **95/95 PASS** |
+| Colab suite | `pytest -q` | **55/55 PASS** |
+| Keyless headless Run All | `python tools/execute_standalone_notebook.py` | **PASS** — 8 cells, 0 errors, QC PASS, 698 KB MP4 |
+| Lint | `ruff check src tests tools` | **PASS** |
+| Paid calls made | — | **0** |
+
+### Three typography defects found by rendering real episodes
+
+Each was visible only by composing a full episode and looking at it.
+
+1. **Apostrophes split words** — `[A-Za-z…]+` turned "isn't" into two tokens, so a
+   panel read `REAL SURPRISE ISN T`. The word pattern now keeps apostrophes.
+2. **Stranded ampersands** — converting "and" to "&" left `SPINNING &` and
+   `& SYSTEMS` after truncation. Ampersands are now trimmed unless they join two
+   kept words.
+3. **Planner scaffolding reached headlines** — `visual_objective` is
+   `"fact_1 beat for <topic>"` in keyless plan mode, which produced
+   `FACT 1 BEAT WHAT`. Scaffolding is now recognised and narration is preferred
+   as the headline source. The same fix stopped every preview panel drawing the
+   same globe: narration restates the topic in every scene, so it is a poor
+   discriminator for schematic choice and is excluded from it.

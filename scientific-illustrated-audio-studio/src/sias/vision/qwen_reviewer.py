@@ -31,7 +31,37 @@ _SCORE_FIELDS = [
 ]
 
 
+INSTITUTIONAL_STRUCTURAL = (
+    "This is an Institutional Lab Notebook DIAGRAM, reviewed BEFORE the headline, frame and "
+    "instrument readout are typeset over it. Judge it as a diagram, not a finished panel.\n"
+    "Hard-fail with HF_TEXT_HALLUCINATION if the drawing contains ANY letter, digit, unit, "
+    "legend, logo, watermark, panel border or corner bracket — all typography is composited "
+    "separately, so drawn text is a defect even when it is spelled correctly.\n"
+    "Hard-fail with HF_STYLE_DRIFT for gradients, soft shadows, glow, 3D shading, photographic "
+    "texture, paper grain, sketch hatching, or any colour outside "
+    "white / near-black #14161A / blue #3E7EB8 / pale blue #B9D5EA / greys #3C4046 #7C8288 "
+    "#E4E6E8 / night #23262B / red #C0392B / yellow #F2C744.\n"
+    "Hard-fail with HF_COMPOSITION_UNREADABLE if the top 13% or bottom 32% of the frame is "
+    "visually busy — those bands are reserved for typesetting — or if more than one subject "
+    "competes for focus.\n"
+)
+
+
 def structural_rubric(scene_summary: str, identity_name: str) -> str:
+    from ..style.institutional import IDENTITY_NAME
+
+    if identity_name == IDENTITY_NAME:
+        return (
+            "You are a STRUCTURAL reviewer for a flat vector science diagram. "
+            f"Scene: {scene_summary}\n" + INSTITUTIONAL_STRUCTURAL
+            + "Score 0..1 on anatomy, style_fidelity, identity_consistency, composition, "
+            "science_accuracy, story_clarity, novelty. Anatomy stays strict: any human has one "
+            "head, one torso, two arms, two legs, connected joints. Return STRICT JSON only:\n"
+            '{"anatomy":0,"style_fidelity":0,"identity_consistency":0,"composition":0,'
+            '"science_accuracy":0,"story_clarity":0,"novelty":0,'
+            f'"hard_fail_reasons":[/* codes from {HARD_FAIL_CODES} */],'
+            '"repair_instructions":[],"summary":""}'
+        )
     return (
         "You are a STRUCTURAL reviewer for a scientific notebook cartoon still. "
         f"Identity: {identity_name}. Scene: {scene_summary}\n"
