@@ -1,0 +1,6 @@
+# Lean Colab install — API-first, CPU-only. Node/Remotion/WhisperX are NOT here.
+pydantic>=2.5
+PyYAML>=6.0
+Pillow>=10.0
+ipywidgets>=8.0
+openai>=1.40

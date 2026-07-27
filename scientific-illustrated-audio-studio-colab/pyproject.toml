@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sias-colab"
+version = "2.0.0"
+description = "SIAS Agentic Colab Studio — image-first science storytelling for Google Colab"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.5", "PyYAML>=6.0", "Pillow>=10.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.4", "nbformat>=5.9", "nbclient>=0.9"]
+colab = ["ipywidgets>=8.0", "openai>=1.40"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

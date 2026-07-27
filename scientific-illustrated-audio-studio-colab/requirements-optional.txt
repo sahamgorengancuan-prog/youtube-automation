@@ -1,0 +1,4 @@
+# Optional, user-selected only (lazy install):
+# higgsfield-client   # optional image provider / virality predictor
+# whisperx            # advanced alignment (GPU)
+# silero-vad          # improved speech/silence detection

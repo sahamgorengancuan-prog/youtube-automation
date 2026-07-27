@@ -5,10 +5,10 @@
     "1_source_audit_and_scaffold": "DONE",
     "2_offline_core": "DONE",
     "3_provider_adapters": "DONE",
-    "4_colab_ux": "IN_PROGRESS",
-    "5_tests_and_smoke": "PENDING",
-    "6_docs_and_final_audit": "PENDING"
+    "4_colab_ux": "DONE",
+    "5_tests_and_smoke": "DONE",
+    "6_docs_and_final_audit": "DONE"
   },
   "paid_calls_made": 0,
-  "notes": "engine = existing sias package (52 tests green); third-party repos pinned via ls-remote"
+  "notes": "validation: ruff clean; 17/17 colab tests; 52/52 engine tests; notebooks valid; keyless plan exec OK; smoke PASS; 0 paid calls"
 }
