@@ -108,6 +108,9 @@ class SceneSpec(BaseModel):
     panel_title: str = ""
     panel_metric: dict[str, str] = Field(default_factory=dict)
     panel_background: str = ""
+    # Layout grammar (see sias.style.composition). Left empty it is derived from
+    # the beat role, which generalises across topics the way a subject cannot.
+    composition_archetype: str = ""
 
 
 class StyleBible(BaseModel):

@@ -158,13 +158,21 @@ _STOPWORDS = {
 _SCAFFOLD = re.compile(r"^\w+ beat for ", re.IGNORECASE)
 
 
-def _trim_conjunctions(words: list[str]) -> list[str]:
-    """An "&" only earns its place between two kept words. Truncation and filler
-    removal both strand them, and "SPINNING &" reads as a mistake."""
+def _trim_conjunctions(words: list[str], truncated: bool = False) -> list[str]:
+    """An "&" only earns its place between two substantial halves.
+
+    Filler removal strands it at an edge ("SPINNING &") and truncation leaves it
+    heading a fragment ("... WORK & DOESN'T"). Both read as mistakes, so an
+    ampersand in the last two slots takes the tail with it.
+    """
     while words and words[0] == "&":
         words = words[1:]
     while words and words[-1] == "&":
         words = words[:-1]
+    # Only a truncated list can strand a conjunction mid-clause. "STATIC DAY &
+    # NIGHT" is complete and must survive; "... WORK & DOESN'T" is a cut clause.
+    if truncated and "&" in words[-2:]:
+        words = words[:len(words) - 2 + words[-2:].index("&")]
     return words
 
 
@@ -207,7 +215,8 @@ def derive_headline(scene: SceneSpec, display: bool = False) -> list[str]:
     words = [w for w in words if keep_stops or w.lower() not in _STOPWORDS]
     words = _trim_conjunctions(words)
     max_words = 8 if display else 4
-    words = _trim_conjunctions([w.upper() for w in words[:max_words]])
+    truncated = len(words) > max_words
+    words = _trim_conjunctions([w.upper() for w in words[:max_words]], truncated)
     if not words:
         return []
     return _balance(words, 3 if display else 2)
@@ -243,35 +252,16 @@ def derive_headline_anchor(scene: SceneSpec, index: int) -> str:
     return "bottom_left"
 
 
-# Content keyword → schematic. Explicit and inspectable rather than an index
-# rotation, so the stand-in art actually matches what the scene is about.
-_SCHEMATIC_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
-    (("rotation", "spin", "spinning", "orbit", "rotate"), "globe_rotation"),
-    (("wind", "atmosphere", "air", "storm", "pressure"), "wind_city"),
-    (("ocean", "water", "sea", "flood", "wave", "rain", "tide"), "water_terrain"),
-    (("ecosystem", "collapse", "species", "crop", "forest", "life", "extinct"), "icon_grid"),
-    (("earth", "planet", "globe", "world", "day", "night"), "globe"),
-]
-
-
-_FALLBACK_ROTATION = ("globe", "wind_city", "water_terrain", "icon_grid")
-
-
 def derive_schematic(scene: SceneSpec, index: int) -> str:
-    """Which stand-in diagram best represents this scene."""
-    if index == 0 or scene.beat_role == "cold_open":
-        return "globe_rotation"
-    # Narration is deliberately excluded: it restates the episode topic in
-    # nearly every scene, so it identifies the episode, not the panel.
-    objective = "" if _SCAFFOLD.match(scene.visual_objective) else scene.visual_objective
-    haystack = " ".join([scene.panel_title, objective,
-                         " ".join(scene.scientific_labels)]).lower()
-    for keywords, kind in _SCHEMATIC_KEYWORDS:
-        if any(k in haystack for k in keywords):
-            return kind
-    # No distinguishing subject yet (a keyless plan has none): rotate, so a
-    # preview reads as a sequence instead of the same panel eight times.
-    return _FALLBACK_ROTATION[index % len(_FALLBACK_ROTATION)]
+    """Which layout archetype the preview stand-in should draw.
+
+    Delegates to the composition grammar: a preview must show the same layout the
+    live prompt asks for, and layouts generalise across topics where subjects
+    (globe, city, ocean) do not.
+    """
+    from .composition import derive_composition
+
+    return derive_composition(scene, index)
 
 
 # ---------------------------------------------------------------------------

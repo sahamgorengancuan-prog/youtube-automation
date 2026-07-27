@@ -109,3 +109,39 @@ Each was visible only by composing a full episode and looking at it.
    as the headline source. The same fix stopped every preview panel drawing the
    same globe: narration restates the topic in every scene, so it is a poor
    discriminator for schematic choice and is excluded from it.
+
+## Addendum — consistency for auto-generated illustrations
+
+The v5 identity is a design *language*, not a design to reproduce. Subjects are
+generated per topic; the drawing language is held by explicit machinery.
+
+| Check | Command | Result |
+|---|---|---|
+| Style anchor generated once, before any scene | `test_every_scene_is_conditioned_on_the_style_anchor` | **PASS** — anchor written to `episodes/*/style/style_anchor.png`, first BFL payload references nothing |
+| Every scene payload carries the anchor | same test | **PASS** — `reference_images` asserted on all 8 scene calls |
+| Drift gate spends one bounded regeneration | `test_drift_gate_spends_one_bounded_regeneration` | **PASS** — exactly 2 generations, 2 image calls charged |
+| Anchor prompt has no subject and no lettering | `test_style_anchor_prompt_has_no_subject_and_no_text` | **PASS** |
+| Reference order is authority order | `test_reference_pack_puts_the_style_anchor_first` | **PASS** — style board then previous panel, both hashed |
+| Layout grammar is topic-agnostic | `test_archetypes_are_topic_agnostic` | **PASS** — same beat → same archetype for vaccines, black holes, rain |
+| Unknown beats rotate instead of repeating | `test_unknown_beats_rotate_instead_of_repeating` | **PASS** — 6 distinct layouts |
+| Prompt carries the archetype | `test_prompt_carries_the_layout_archetype` | **PASS** |
+| Engine suite | `pytest -q` | **103/103 PASS** |
+| Colab suite | `pytest -q` | **57/57 PASS** |
+| Paid calls made | — | **0** |
+
+### What changed and why
+
+The first pass hardcoded the reference episode's *subjects* — a globe, a city
+under wind, an ocean cross-section — as the preview diagrams and as the
+schematic-selection keywords. That copied the design instead of the design
+language, and it made any other topic look wrong. Those are replaced by six
+composition archetypes keyed on the narrative beat, which is the part that
+generalises across topics.
+
+`select_references` and BFL's `reference_paths` both already existed and were
+never called. They are now the backbone of the style lock.
+
+One further typography fix: truncating a headline could strand a conjunction
+(`... WORK & DOESN'T`). An ampersand in the last two slots now takes the tail
+with it — but only when the list was actually truncated, so a complete
+`STATIC DAY & NIGHT` survives.

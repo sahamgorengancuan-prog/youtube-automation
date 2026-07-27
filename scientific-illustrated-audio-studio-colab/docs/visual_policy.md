@@ -20,6 +20,33 @@ lettering. Rather than review for that failure, v5 removes it: the prompt
 forbids all typography and the reviewers hard-fail `HF_TEXT_HALLUCINATION` on any
 drawn glyph, even a correctly spelled one.
 
+## Consistency of auto-generated illustrations
+
+Nothing about the subject matter is fixed — the model invents whatever each
+scene needs. What is fixed is the **drawing language**, held by four mechanisms
+that only work together (`sias.style.style_lock`, `sias.style.composition`):
+
+1. **Style anchor.** One image generated per episode *before any scene*, showing
+   the contour weight, palette and fill language on six neutral geometric
+   studies and no subject at all. A subject here would leak into every scene
+   that references it — which is exactly why scene 1 is a bad anchor.
+2. **Reference conditioning.** That anchor, plus the previously approved panel,
+   is attached to every scene generation as a BFL reference image
+   (`reference_paths` → `reference_images`). A shared style *paragraph* does not
+   hold a sequence together; a shared reference *image* does.
+3. **Layout grammar.** Six composition archetypes — `single_subject`,
+   `comparison_pair`, `process_flow`, `cross_section`, `quantity_row`,
+   `before_after` — mapped from the narrative beat, not from the topic. An
+   auto-generated vaccine episode and a monsoon episode share the same rhythm of
+   layouts.
+4. **Drift gate.** Each finished panel is measured against the anchor
+   (`HeuristicConsistency`); a flagged panel spends exactly one bounded
+   regeneration with the drift named and the subject preserved. Earlier versions
+   only logged drift, which is how episodes wandered.
+
+Budget cost: one extra image call for the anchor, plus at most one per drifting
+panel, all charged through the ledger.
+
 ## Closed palette
 
 `sias.style.institutional.PALETTE` is the whole colour system. It is **not**
@@ -81,6 +108,13 @@ from the story agent. The layout, typography and safe zones you approve in
 PREVIEW are exactly what LIVE reproduces; only the words and the artwork change.
 
 ## Preview panels are real panels
+
+The preview stand-ins draw the **composition archetype, not a subject**. An
+earlier version drew a globe, a city and an ocean — the reference episode's
+subjects — which made every other topic look wrong and implied art direction the
+live path does not follow.
+
+
 
 `make_preview_panel` composes the same frame, HUD, typography and safe zones as a
 live episode, with a deterministic schematic standing in for the artwork. Every

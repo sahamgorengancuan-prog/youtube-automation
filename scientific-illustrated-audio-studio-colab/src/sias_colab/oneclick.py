@@ -121,15 +121,55 @@ def _compose_institutional(scene: SceneSpec, index: int, experiment_id: str, art
     return compose_panel(spec, out_path, width, height, illustration=art)
 
 
+def _generate_style_anchor(bible: StyleBible, adapters: dict, studio: Studio,
+                           out_path: Path, width: int, height: int, log) -> Path:
+    """One image, generated before any scene, that fixes the drawing language.
+
+    Every scene is then conditioned on it. This is what makes auto-generated
+    subjects look like one episode instead of twelve separate commissions."""
+    from sias.style.style_lock import style_anchor_prompt
+
+    studio.budget.charge("image", 1, "style anchor")
+    anchor = adapters["bfl"].generate(style_anchor_prompt(bible),
+                                      studio.cfg.engine.visual.production_model,
+                                      studio.cfg.engine.visual.seed_base, width, height, out_path)
+    verify_image(anchor)
+    log(f"      style anchor locked: {Path(anchor).name} (referenced by every scene)")
+    return Path(anchor)
+
+
 def _live_scene_image(scene: SceneSpec, bible: StyleBible, adapters: dict, studio: Studio,
-                      out_path: Path, width: int, height: int, log, index: int = 0) -> Path:
-    prompt = compile_prompt(scene, bible, index=index)["text"]
+                      out_path: Path, width: int, height: int, log, index: int = 0,
+                      anchor: Path | None = None, previous: Path | None = None) -> Path:
+    from sias.style.reference_pack import select_references
+    from sias.style.style_lock import anchor_assets, drift_repair_directive
+
+    references = select_references(scene, anchor_assets(anchor, previous) if anchor else [],
+                                  studio.cfg.engine.visual.max_reference_images)
+    prompt = compile_prompt(scene, bible, reference_record=references, index=index)["text"]
+    ref_paths = [r["path"] for r in references["selected"]]
     seed = stable_seed(studio.cfg.engine.visual.seed_base, scene.scene_id, 0)
     studio.budget.charge("image", 1, f"scene {scene.scene_id}")
     art_path = out_path.with_name(out_path.stem + "_diagram.png")
     img = adapters["bfl"].generate(prompt, studio.cfg.engine.visual.production_model,
-                                   seed, width, height, art_path)
+                                   seed, width, height, art_path, reference_paths=ref_paths)
     verify_image(img)
+
+    # Drift gate: measure the finished diagram against the anchor and spend one
+    # bounded regeneration on a panel that broke the language. Flagging drift
+    # without acting on it is what let earlier episodes wander.
+    if anchor is not None:
+        from .diamond.consistency import HeuristicConsistency
+
+        drift = HeuristicConsistency([str(anchor)]).check(img)
+        if drift.get("flags"):
+            log(f"   drift {scene.scene_id}: {drift['flags']} -> one bounded regeneration")
+            studio.budget.charge("image", 1, f"style drift repair {scene.scene_id}")
+            img = adapters["bfl"].generate(prompt + drift_repair_directive(drift["flags"]),
+                                           studio.cfg.engine.visual.production_model,
+                                           seed + 7, width, height, art_path,
+                                           reference_paths=ref_paths)
+            verify_image(img)
     if adapters.get("openrouter"):
         studio.budget.charge("vision", 2, f"dual review {scene.scene_id}")
         qwen = parse_vision_score(
@@ -150,7 +190,8 @@ def _live_scene_image(scene: SceneSpec, bible: StyleBible, adapters: dict, studi
                 verdict["repair_instructions"] or verdict["hard_fail_reasons"])
             studio.budget.charge("image", 1, f"repair {scene.scene_id}")
             img = adapters["bfl"].generate(fix, studio.cfg.engine.visual.production_model,
-                                           seed + 1, width, height, art_path)
+                                           seed + 1, width, height, art_path,
+                                           reference_paths=ref_paths)
             verify_image(img)
     return _compose_institutional(scene, index, studio.experiment_id, Path(img),
                                   out_path, width, height)
@@ -222,11 +263,19 @@ def run_all(
     if not live_images:
         width, height = int(width * preview_scale), int(height * preview_scale)
     images: dict[str, str] = {}
+    anchor: Path | None = None
+    if live_images:
+        anchor = _generate_style_anchor(bible, adapters, studio,
+                                        episode_dir / "style" / "style_anchor.png",
+                                        width, height, log)
+    previous: Path | None = None
     for index, scene in enumerate(scenes):
         out_path = episode_dir / "scenes" / scene.scene_id / f"{scene.scene_id}.png"
         if live_images:
             img = _live_scene_image(scene, bible, adapters, studio, out_path,
-                                    width, height, log, index=index)
+                                    width, height, log, index=index,
+                                    anchor=anchor, previous=previous)
+            previous = Path(img)
         else:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             img = make_preview_panel(out_path, scene, index, studio.experiment_id, width, height)
@@ -236,11 +285,13 @@ def run_all(
     # Diamond consistency (heuristic tier — flags drift, never approves).
     from .diamond.consistency import HeuristicConsistency
 
-    anchor = images[scenes[0].scene_id]
-    checker = HeuristicConsistency([anchor])
+    # Measure against the style anchor when there is one: scene 1 is a scene,
+    # and using it as the reference bakes its subject into the standard.
+    reference = str(anchor) if anchor is not None else images[scenes[0].scene_id]
+    checker = HeuristicConsistency([reference])
     consistency_flags = {
         sid: r["flags"] for sid, r in
-        ((sid, checker.check(p)) for sid, p in images.items() if p != anchor)
+        ((sid, checker.check(p)) for sid, p in images.items() if p != reference)
         if r.get("flags")
     }
     if consistency_flags:

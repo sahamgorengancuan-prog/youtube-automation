@@ -10,6 +10,7 @@ from sias.config import SIASConfig
 from sias.exceptions import RenderError
 from sias.render.hud import PanelSpec, compose_panel
 from sias.render.schematic import SCHEMATICS, content_box, draw_schematic
+from sias.style.composition import ARCHETYPES, derive_composition
 from sias.schemas import SceneSpec
 from sias.style.bible import build_style_bible
 from sias.style.institutional import (
@@ -121,14 +122,18 @@ def test_explicit_background_overrides_the_derivation():
     assert derive_background(scene) == "night"
 
 
-def test_schematic_follows_the_subject():
-    def kind(title, beat="fact_1", i=1):
-        return derive_schematic(SceneSpec(scene_id="S0", beat_role=beat, panel_title=title), i)
+def test_schematic_follows_the_layout_grammar_not_the_subject():
+    """The preview must draw the archetype the live prompt asks for. Keying on
+    subjects (globe / city / ocean) copied the reference episode and made every
+    other topic look wrong."""
+    def kind(beat, i=1):
+        return derive_schematic(SceneSpec(scene_id="S0", beat_role=beat), i)
 
-    assert kind("Atmosphere displacement") == "wind_city"
-    assert kind("Ocean displacement") == "water_terrain"
-    assert kind("Ecosystem collapse") == "icon_grid"
-    assert kind("anything", beat="cold_open", i=0) == "globe_rotation"
+    assert kind("cold_open", 0) == "single_subject"
+    assert kind("explanation") == "process_flow"
+    assert kind("scale_example") == "quantity_row"
+    assert kind("gasp_reveal") == "before_after"
+    assert set(SCHEMATICS) == set(ARCHETYPES)
 
 
 def test_headline_anchor_keeps_the_title_card_at_the_top():
@@ -295,11 +300,88 @@ def test_planner_scaffolding_never_reaches_a_headline():
     assert lines == ["FIRST EVERYTHING", "LOOKS NORMAL"]
 
 
-def test_schematic_ignores_narration_so_a_preview_varies():
-    """Narration repeats the topic in every scene; using it made all eight
-    panels of a keyless preview draw the same globe."""
-    scenes = [SceneSpec(scene_id=f"S0{i}", beat_role="fact_1",
-                        narration="Earth suddenly stopped spinning and the world changed.")
-              for i in range(1, 5)]
-    kinds = {derive_schematic(s, i + 1) for i, s in enumerate(scenes)}
-    assert len(kinds) > 1
+def test_unknown_beats_rotate_instead_of_repeating():
+    """Eight identical layouts read as a template, not a story."""
+    scenes = [SceneSpec(scene_id=f"S0{i}", beat_role="unmapped_beat") for i in range(6)]
+    kinds = {derive_schematic(s, i) for i, s in enumerate(scenes)}
+    assert len(kinds) == 6
+
+
+def test_archetypes_are_topic_agnostic():
+    """The same beat gives the same layout whatever the episode is about — that
+    is what lets an auto-generated vaccine episode share a grammar with a
+    monsoon one."""
+    for topic in ("how mRNA vaccines work", "why black holes bend light",
+                  "what if it rained for a year"):
+        scene = SceneSpec(scene_id="S05", beat_role="scale_example",
+                          panel_title=topic, narration=topic)
+        assert derive_schematic(scene, 5) == "quantity_row"
+
+
+def test_explicit_archetype_overrides_the_beat_mapping():
+    scene = SceneSpec(scene_id="S02", beat_role="cold_open",
+                      composition_archetype="cross_section")
+    assert derive_composition(scene, 0) == "cross_section"
+
+
+def test_prompt_carries_the_layout_archetype():
+    bible = build_institutional_bible(_cfg())
+    scene = SceneSpec(scene_id="S04", beat_role="scale_example", narration="a lot of water")
+    text = compile_prompt(scene, bible, index=4)["text"]
+    assert "quantity_row" in text and ARCHETYPES["quantity_row"][:30] in text
+
+
+# --- consistency of auto-generated illustrations ----------------------------
+
+def test_style_anchor_prompt_has_no_subject_and_no_text():
+    """The anchor is referenced by every scene, so any subject in it would leak
+    into all twelve panels — which is exactly why scene 1 is a bad anchor."""
+    from sias.style.style_lock import style_anchor_prompt
+
+    prompt = style_anchor_prompt(build_institutional_bible(_cfg()))
+    assert "language samples, not illustrations of anything" in prompt
+    assert "Render NO lettering" in prompt
+    assert "#3E7EB8" in prompt  # the anchor establishes the closed palette
+
+
+def test_reference_pack_puts_the_style_anchor_first(tmp_path):
+    """Reference order is authority order: the style board defines the language,
+    the previous panel only carries short-range continuity."""
+    from sias.style.reference_pack import select_references
+    from sias.style.style_lock import anchor_assets
+
+    anchor = draw_schematic(tmp_path / "anchor.png", 320, 180, "single_subject")
+    previous = draw_schematic(tmp_path / "prev.png", 320, 180, "process_flow")
+    scene = SceneSpec(scene_id="S03", beat_role="fact_2", continuity_refs=["S02"])
+
+    record = select_references(scene, anchor_assets(anchor, previous))
+    kinds = [r["kind"] for r in record["selected"]]
+    assert kinds == ["master_style_board", "previous_scene"]
+    assert all(r["sha256"] for r in record["selected"])  # provenance recorded
+
+
+def test_reference_pack_survives_a_missing_previous_panel(tmp_path):
+    from sias.style.reference_pack import select_references
+    from sias.style.style_lock import anchor_assets
+
+    anchor = draw_schematic(tmp_path / "anchor.png", 320, 180, "single_subject")
+    record = select_references(SceneSpec(scene_id="S01"), anchor_assets(anchor, None))
+    assert [r["kind"] for r in record["selected"]] == ["master_style_board"]
+
+
+def test_drift_directive_names_what_broke_and_preserves_the_subject():
+    from sias.style.style_lock import drift_repair_directive
+
+    directive = drift_repair_directive(["palette drift 0.61 > 0.45"])
+    assert "palette drift 0.61" in directive
+    assert "Keep the subject and" in directive  # a drift repair is not a redesign
+
+
+def test_truncation_does_not_strand_a_conjunction():
+    """"... WORK & DOESN'T" is a cut clause; "STATIC DAY & NIGHT" is complete.
+    Only a truncated list may lose its trailing "& X"."""
+    cut = SceneSpec(scene_id="S01", beat_role="cold_open",
+                    narration="Imagine how do mRNA vaccines work and it doesn't stop.")
+    assert "&" not in " ".join(derive_headline(cut, display=True))
+    intact = SceneSpec(scene_id="S06", panel_title="Static day and night")
+    assert derive_headline(intact) == ["STATIC DAY", "& NIGHT"]

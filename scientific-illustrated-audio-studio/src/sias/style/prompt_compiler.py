@@ -66,6 +66,7 @@ def _compile_institutional(scene: SceneSpec, bible: StyleBible, refs: dict[str, 
     readout, no frame. Those are composited by `sias.render.hud`, which is why
     this identity can hold a consistent look across twelve panels.
     """
+    from .composition import composition_directive
     from .institutional import (
         derive_background,
         derive_headline_anchor,
@@ -87,7 +88,8 @@ def _compile_institutional(scene: SceneSpec, bible: StyleBible, refs: dict[str, 
         ),
         "single_visual_objective": illustration_directive(scene, background),
         "composition": (
-            f"{scene.composition or 'one subject, centred, wide empty margins'}. "
+            composition_directive(scene, index) + " "
+            + (f"{scene.composition}. " if scene.composition else "")
             + ("The headline is typeset across the upper third, so keep the subject in the "
                "lower two-thirds. " if anchor == "top_center" else
                "The headline is typeset across the lower third, so keep the subject above it. ")

@@ -9,6 +9,11 @@ from pathlib import Path
 
 import pytest
 
+from sias.schemas import SceneSpec
+from sias.style.bible import build_style_bible
+from sias_colab.config import load_studio_config
+from sias_colab.studio import Studio
+
 ROOT = Path(__file__).resolve().parents[2]
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg required")
@@ -115,3 +120,74 @@ def test_live_path_end_to_end_against_simulated_providers(tmp_path):
     assert Path(result["ass"]).exists() and Path(result["srt"]).exists()
     assert result["budget"]["image_calls"] >= result["scenes"]  # every scene really paid a call
     assert result["budget"]["vision_calls"] >= 2 * result["scenes"]  # dual review ran per scene
+
+
+def test_every_scene_is_conditioned_on_the_style_anchor(tmp_path):
+    """A shared style paragraph does not hold a sequence together; a shared
+    reference image does. Assert the anchor is generated once, before any scene,
+    and is actually attached to every scene's BFL payload."""
+    from sias_colab.oneclick import run_all
+    from sias_colab.preflight.simulation import simulated_adapters
+
+    adapters = simulated_adapters()
+    payloads: list[dict] = []
+    original = adapters["bfl"].transport
+
+    def recording(method, url, headers, body):
+        if method == "POST":
+            payloads.append(dict(body or {}))
+        return original(method, url, headers, body)
+
+    adapters["bfl"].transport = recording
+    result = run_all("How do mRNA vaccines work?", workspace=tmp_path, live=True,
+                     adapters=adapters, human_gates_approved=True,
+                     log=lambda *_a, **_k: None)
+
+    anchor = tmp_path / "episodes" / "how-do-mrna-vaccines-work" / "style" / "style_anchor.png"
+    assert anchor.exists(), "no style anchor was generated"
+
+    # First call is the anchor and references nothing; every later call carries it.
+    assert "reference_images" not in payloads[0]
+    scene_calls = payloads[1:]
+    assert scene_calls, "no scene generations were recorded"
+    for payload in scene_calls:
+        assert str(anchor) in payload.get("reference_images", []), \
+            "a scene was generated without the episode style anchor"
+    assert result["mode"] == "LIVE" and result["qc_status"] == "PASS"
+
+
+def test_drift_gate_spends_one_bounded_regeneration(tmp_path):
+    """Flagging drift without acting on it is what let earlier episodes wander.
+    Feed a panel that violates the palette and assert exactly one repair."""
+    from sias.render.schematic import draw_schematic
+    from sias_colab.oneclick import _live_scene_image
+    from sias_colab.preflight.simulation import fake_png_bytes, simulated_adapters
+
+    anchor = draw_schematic(tmp_path / "anchor.png", 256, 256, "single_subject")
+    off_palette = fake_png_bytes()  # deterministic noise: nothing like the anchor
+
+    adapters = simulated_adapters()
+    calls = {"n": 0}
+    original = adapters["bfl"].transport
+
+    def recording(method, url, headers, body):
+        if method == "POST":
+            calls["n"] += 1
+        return original(method, url, headers, body)
+
+    adapters["bfl"].transport = recording
+    adapters.pop("openrouter")  # isolate the drift gate from the review loop
+
+    cfg = load_studio_config(ROOT / "configs" / "default.yaml",
+                             overrides={"project": {"topic": "drift"}})
+    studio = Studio(cfg, tmp_path / "ws")
+    bible = build_style_bible(cfg.engine)
+    scene = SceneSpec(scene_id="S02", beat_role="fact_1", narration="a drifting panel")
+
+    (tmp_path / "out").mkdir()
+    _live_scene_image(scene, bible, adapters, studio, tmp_path / "out" / "S02.png",
+                      256, 256, log=lambda *_a, **_k: None, index=1, anchor=anchor)
+
+    assert calls["n"] == 2, f"expected one generation + one bounded drift repair, got {calls['n']}"
+    assert studio.budget.snapshot()["image_calls"] == 2
+    assert off_palette  # the fixture is what makes the anchor comparison meaningful
