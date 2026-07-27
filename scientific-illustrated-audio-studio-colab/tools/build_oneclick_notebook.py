@@ -35,6 +35,8 @@ LANGUAGE  = "en"      # @param ["en", "id"]
 VOICE     = "cedar"   # @param {type:"string"}
 RUN_LIVE  = False     # @param {type:"boolean"}
 MAX_IMAGE_BUDGET = 30 # @param {type:"integer"}
+# Endpoint model BFL. Ganti bila API Anda memakai nama lain (submit 404 = nama salah).
+BFL_MODEL = "flux-2-pro"  # @param ["flux-2-pro", "flux-2-pro-preview", "flux-2-flex", "flux-pro-1.1"]
 # Set True HANYA setelah Anda benar-benar meninjau hasil (hook, style, karakter,
 # pilot, audio, tonton di ponsel). Gerbang manusia tidak boleh dilewati otomatis.
 HUMAN_GATES_APPROVED = False  # @param {type:"boolean"}
@@ -98,6 +100,7 @@ RESULT = run_all(
     voice=VOICE,
     max_image_calls=MAX_IMAGE_BUDGET,
     human_gates_approved=HUMAN_GATES_APPROVED,
+    bfl_model=BFL_MODEL,
 )
 
 print()

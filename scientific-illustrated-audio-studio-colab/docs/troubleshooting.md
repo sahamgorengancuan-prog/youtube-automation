@@ -16,3 +16,5 @@
 | Durasi video ≠ narasi | Toleransi default 0.08 dtk. Cek alignment; audio adalah sumber kebenaran timeline. |
 | Widget tidak muncul | Fallback berbasis teks aktif otomatis; semua fungsi tetap tersedia. |
 | Higgsfield error | OPSIONAL — nonaktifkan (default) dan pipeline inti tetap lengkap. |
+| `ProviderSchemaError [bfl.poll] status 404` | **FIXED** — BFL mengembalikan `polling_url` spesifik region (mis. `api.us1.bfl.ai`); adapter kini selalu memakai URL itu, bukan menyusun `{base}/get_result?id=`. Perbarui repo bila Anda memakai salinan lama. |
+| `ProviderRequestError [bfl.submit] endpoint not found` | Nama model salah untuk akun/API Anda. Ganti `BFL_MODEL` di form notebook (`flux-2-pro`, `flux-2-pro-preview`, `flux-2-flex`, `flux-pro-1.1`). |

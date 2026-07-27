@@ -42,6 +42,44 @@ def test_bfl_submit_poll_download(tmp_path):
     assert [m for m, _ in calls] == ["POST", "GET", "GET"]
 
 
+def test_bfl_uses_region_specific_polling_url(tmp_path):
+    """Regression for a real live failure: BFL returns a REGION-SPECIFIC
+    polling_url (api.us1.bfl.ai). Constructing `{base}/get_result?id=` 404s.
+    generate() must poll the URL the API handed back."""
+    png = b"\x89PNG" + b"0" * 8000
+    seen: list[str] = []
+
+    def transport(method, url, headers, body):
+        seen.append(url)
+        if url.endswith("/flux-2-pro"):
+            assert headers.get("accept") == "application/json"
+            assert body["seed"] < 2_147_483_647  # 32-bit-range seed
+            return 200, {"id": "req-9", "polling_url": "https://api.us1.bfl.ai/v1/get_result?id=req-9"}
+        if url.startswith("https://api.us1.bfl.ai/"):
+            return 200, {"status": "Ready", "result": {"sample": "https://cdn/i.png"}}
+        if "get_result" in url:  # the OLD constructed URL — the live 404
+            return 404, {"detail": "Not Found"}
+        return 200, png
+
+    out = BFLAdapter(api_key="k", transport=transport).generate(
+        "p", "flux-2-pro", seed=2**47, width=768, height=1344, out_path=tmp_path / "i.png")
+    assert out.exists()
+    assert any(u.startswith("https://api.us1.bfl.ai/") for u in seen), "region polling_url not used"
+    assert not any(u == "https://api.bfl.ai/v1/get_result?id=req-9" for u in seen)
+
+
+def test_bfl_poll_404_is_actionable():
+    adapter = BFLAdapter(api_key="k", transport=lambda m, u, h, b: (404, {"detail": "Not Found"}))
+    with pytest.raises(ProviderRequestError, match="region-specific"):
+        adapter.poll("req-1", polling_url="https://api.us1.bfl.ai/v1/get_result?id=req-1")
+
+
+def test_bfl_submit_404_names_the_model():
+    adapter = BFLAdapter(api_key="k", transport=lambda m, u, h, b: (404, {"detail": "Not Found"}))
+    with pytest.raises(ProviderRequestError, match="flux-2-pro-preview"):
+        adapter.submit_job("flux-2-bogus", {})
+
+
 def test_bfl_moderation_is_explicit_failure():
     def transport(method, url, headers, body):
         if url.endswith("/flux-2-pro"):

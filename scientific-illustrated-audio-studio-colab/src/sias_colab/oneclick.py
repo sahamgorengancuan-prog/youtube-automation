@@ -128,6 +128,7 @@ def run_all(
     max_image_calls: int = 30,
     preview_scale: float = 0.5,
     human_gates_approved: bool = False,
+    bfl_model: str = "",
     log=print,
 ) -> dict[str, Any]:
     # Absolute workspace: ffmpeg's concat demuxer resolves list entries against
@@ -137,7 +138,8 @@ def run_all(
         Path(__file__).resolve().parents[2] / "configs" / "default.yaml",
         overrides={"project": {"topic": topic, "language": language},
                    "audio": {"voice": voice},
-                   "budgets": {"max_image_calls": max_image_calls}},
+                   "budgets": {"max_image_calls": max_image_calls},
+                   **({"visual": {"production_model": bfl_model}} if bfl_model else {})},
         colab={"run_mode": "plan", "arm_paid_calls": live},
     )
     studio = Studio(cfg, workspace)
