@@ -17,3 +17,17 @@ SIAS Colab integrates or references the following (pins + roles in
 
 `higgsfield-ai/higgsfield` (training orchestration) is explicitly NOT used.
 No model weights, fonts, or third-party code are redistributed in this repo.
+
+## Diamond-stack additions (2026-07-27; details in docs/license_matrix.md + model_weights.lock.json)
+langgraph (MIT) · pydantic-ai (MIT) · prefect (Apache-2.0) · Qwen-Image /
+Qwen3-VL (Apache-2.0) · Step1X-Edit (Apache-2.0) · OmniGen2 (Apache-2.0) ·
+ComfyUI (**GPL-3.0**, isolated lab only) · StoryDiffusion (Apache-2.0) ·
+PuLID / InstantID (Apache-2.0 code, **InsightFace noncommercial dep — blocked**)
+· dinov2 (Apache-2.0) · dreamsim (MIT) · InternVL (MIT) · GroundingDINO
+(Apache-2.0) · SAM2 (Apache-2.0) · mmpose (Apache-2.0) · HPSv2 (Apache-2.0) ·
+chatterbox (MIT) · F5-TTS (MIT code, **CC-BY-NC weights — blocked**) ·
+Step-Audio-EditX (Apache-2.0) · fish-speech (**research license only**) ·
+faster-whisper (MIT) · stable-ts (MIT) · motion-canvas (MIT) · manim (MIT) ·
+PySceneDetect (BSD-3) · MMAudio (MIT code, weight suitability not guaranteed —
+enabled:false) · libass (ISC). MusicGen/AudioLDM2 weights are noncommercial —
+excluded from monetized defaults; use licensed/owned music.
