@@ -17,3 +17,11 @@ Environment: Linux, Python 3.11, ffmpeg/ffprobe present, NO API keys.
 Notes: the plan execution deletes all six secret env vars before running, so
 the run proves fresh-runtime keyless behavior. The smoke MP4 is at
 `workspace_smoke/smoke.mp4` (gitignored; regenerate with `make smoke`).
+
+## Addendum — One-Click notebook
+
+| Check | Command | Result |
+|---|---|---|
+| run_all() offline single call | `pytest tests/integration/test_oneclick.py::test_run_all_offline_single_call` | **PASS** — PREVIEW mode, QC PASS, MP4+SRT+manifest+ZIP, 0 paid calls, all scene PNGs carry the placeholder marker |
+| One-click notebook keyless Run All | `python tools/execute_oneclick_notebook.py` | **PASS** — 5 cells, 0 errors, MODE: PREVIEW, final.mp4 produced |
+| Full suite after addition | `pytest tests -q` | **19/19 PASS** |

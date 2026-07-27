@@ -7,6 +7,19 @@ narasi alami** — bukan video AI. Mode awal `plan` **gratis** (nol panggilan AP
 **still illustrations + natural narration** — image-first, never video-first.
 Default `plan` mode is **free** (zero paid API calls).
 
+## ⚡ One-Click mode (satu notebook, sekali Run All)
+
+`notebooks/SIAS_One_Click.ipynb` — SATU notebook terintegrasi: isi topik →
+**Runtime ▸ Run all** → seluruh pipeline berjalan otomatis dalam satu lintasan
+(plan → ilustrasi → narasi → alignment → render → QC → ZIP), tanpa bagian
+terpisah. Tanpa API key tetap selesai end-to-end sebagai **PREVIEW**
+ber-watermark (0 biaya); dengan key + `RUN_LIVE=True` menghasilkan episode live
+penuh (BFL + OpenAI TTS + review Qwen/Gemini bila ada key OpenRouter).
+Verified: keyless nbclient Run-All → 0 errors, QC PASS, MP4 dihasilkan.
+
+Notebook 17-bagian (`SIAS_Agentic_Colab_Control_Center.ipynb`) tetap tersedia
+untuk kontrol bertahap dengan gerbang persetujuan manusia.
+
 ## Open in Colab
 
 Upload / open `notebooks/SIAS_Agentic_Colab_Control_Center.ipynb` in Google
