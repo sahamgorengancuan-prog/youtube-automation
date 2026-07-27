@@ -32,6 +32,19 @@ def _motion_filter(motion: str, width: int, height: int, fps: int, duration_s: f
 MAX_CLIP_SECONDS = 900.0  # a still-image clip longer than this is a bug, not a design
 
 
+def quantized_frames(start_s: float, end_s: float, fps: int) -> int:
+    """Frame count derived from CUMULATIVE timeline positions, not from the
+    clip's own length.
+
+    Rounding each clip independently loses up to half a frame per scene, and
+    across a 7-scene episode that compounds into a video measurably shorter than
+    the narration — which the final duration gate (±0.08s) then rejects. Taking
+    the difference of two rounded absolute positions keeps the sum of all clips
+    equal to the rounded total, so the drift cannot accumulate.
+    """
+    return max(1, int(round(end_s * fps)) - int(round(start_s * fps)))
+
+
 def clip_cmd(
     scene: RenderScene,
     out_path: str | Path,
@@ -52,6 +65,8 @@ def clip_cmd(
             "check the narration duration before rendering",
             stage="render.clip",
         )
+    frames = quantized_frames(scene.start_s, scene.end_s, fps)
+    duration = frames / float(fps)
     vf = _motion_filter(scene.motion, width, height, fps, duration, max_zoom_pct, max_pan_pct)
     return [
         ffmpeg,
@@ -70,8 +85,10 @@ def clip_cmd(
         "libx264",
         "-preset",
         "veryfast",
-        "-t",
-        f"{duration:.3f}",
+        # Exact frame count, so concatenating the clips reproduces the timeline
+        # to the frame instead of drifting a few hundredths of a second short.
+        "-frames:v",
+        str(frames),
         str(out_path),
     ]
 

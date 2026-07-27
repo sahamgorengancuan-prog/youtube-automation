@@ -5,26 +5,23 @@ from __future__ import annotations
 
 import audioop
 import math
-import wave
 from pathlib import Path
 from typing import Any
 
 from ..exceptions import AssetIntegrityError, SilentAudioError
+from .wavio import open_wav
 
 
 def wav_stats(path: str | Path) -> dict[str, Any]:
     p = Path(path)
     if not p.exists() or p.stat().st_size < 128:
         raise AssetIntegrityError(f"audio file missing or too small: {p}", stage="audio")
-    try:
-        with wave.open(str(p), "rb") as wf:
-            header_frames = wf.getnframes()
-            rate = wf.getframerate()
-            width = wf.getsampwidth()
-            channels = wf.getnchannels()
-            frames = wf.readframes(header_frames)
-    except wave.Error as exc:
-        raise AssetIntegrityError(f"audio not decodable as WAV: {p} ({exc})", stage="audio") from exc
+    with open_wav(p) as wf:  # tolerates FFmpeg's WAVE_FORMAT_EXTENSIBLE output
+        header_frames = wf.getnframes()
+        rate = wf.getframerate()
+        width = wf.getsampwidth()
+        channels = wf.getnchannels()
+        frames = wf.readframes(header_frames)
 
     # Duration MUST come from the PCM actually present, not the header: streamed
     # WAVs (e.g. OpenAI TTS) ship a placeholder data-chunk size (0xFFFFFFFF),

@@ -31,6 +31,22 @@ def _write_wav(path: Path, seconds: float = 1.0, freq: float = 440.0, amplitude:
     return path
 
 
+def _make_extensible(path: Path, sub_format_tag: int) -> Path:
+    """Rewrite a classic PCM WAV's `fmt ` chunk as the 40-byte
+    WAVE_FORMAT_EXTENSIBLE form FFmpeg emits for filtered output."""
+    from sias.audio.wavio import WAVE_FORMAT_EXTENSIBLE
+
+    raw = bytearray(path.read_bytes())
+    classic = bytes(raw[20:36])  # 16-byte fmt body
+    guid = struct.pack("<I", sub_format_tag) + bytes.fromhex("00001000800000aa00389b71")
+    ext = (struct.pack("<H", WAVE_FORMAT_EXTENSIBLE) + classic[2:]
+           + struct.pack("<HHI", 22, 16, 0x4) + guid)
+    rebuilt = bytearray(raw[:16]) + struct.pack("<I", len(ext)) + ext + raw[36:]
+    struct.pack_into("<I", rebuilt, 4, len(rebuilt) - 8)
+    path.write_bytes(bytes(rebuilt))
+    return path
+
+
 def test_silence_detection(tmp_path):
     loud = _write_wav(tmp_path / "loud.wav", amplitude=0.5)
     silent = _write_wav(tmp_path / "silent.wav", amplitude=0.00001)
@@ -174,3 +190,52 @@ def test_timeline_respects_allowed_motion(tmp_path):
 
     out = build_render_scenes(scenes, [SceneTiming(scene_id="S01", start_s=0, end_s=3)], {"S01": str(img)}, ["hold"])
     assert out[0].motion == "hold"  # push_in not in allowed list -> hold
+
+
+def test_extensible_wav_from_ffmpeg_is_readable(tmp_path):
+    """FFmpeg writes WAVE_FORMAT_EXTENSIBLE (0xFFFE) for filtered output — e.g.
+    the loudnorm pre-master. `wave` refuses it outright ("unknown format:
+    65534"), which crashed the live audio gates. The payload is plain PCM, so we
+    normalise the fmt chunk instead of failing."""
+    from sias.audio.wavio import open_wav
+
+    path = _write_wav(tmp_path / "ext.wav", seconds=1.0, rate=24000)
+    _make_extensible(path, sub_format_tag=1)  # KSDATAFORMAT_SUBTYPE_PCM
+
+    with pytest.raises(wave.Error, match="65534"):
+        wave.open(str(path), "rb")
+    with open_wav(path) as wf:
+        assert wf.getnchannels() == 1 and wf.getsampwidth() == 2 and wf.getframerate() == 24000
+    assert wav_stats(path)["duration_s"] == pytest.approx(1.0, abs=0.02)
+
+
+def test_non_pcm_extensible_is_refused(tmp_path):
+    from sias.audio.wavio import open_wav
+    from sias.exceptions import AssetIntegrityError
+
+    path = _write_wav(tmp_path / "float.wav")
+    _make_extensible(path, sub_format_tag=3)  # KSDATAFORMAT_SUBTYPE_IEEE_FLOAT
+
+    with pytest.raises(AssetIntegrityError, match="not PCM"):
+        open_wav(path)
+
+
+def test_clip_frames_do_not_drift_across_an_episode():
+    """Rounding each clip on its own loses up to half a frame per scene; over an
+    episode that made the video shorter than the narration and tripped the ±0.08s
+    final duration gate."""
+    from sias.audio.silence import wav_stats  # noqa: F401  (kept close to the audio contract)
+    from sias.render.ffmpeg import quantized_frames
+
+    fps = 30
+    boundaries = [0.0, 4.317, 8.902, 13.44, 18.113, 22.7, 26.05, 30.19]
+    total = sum(quantized_frames(a, b, fps) for a, b in zip(boundaries, boundaries[1:]))
+    assert total == round(boundaries[-1] * fps)
+    assert abs(total / fps - boundaries[-1]) <= 0.02
+
+
+def test_clip_cmd_pins_an_exact_frame_count():
+    scene = RenderScene(scene_id="S01", image_path="i.png", start_s=4.317, end_s=8.902, motion="hold")
+    cmd = clip_cmd(scene, "o.mp4", 1080, 1920, 30)
+    assert "-frames:v" in cmd
+    assert cmd[cmd.index("-frames:v") + 1] == str(round(8.902 * 30) - round(4.317 * 30))

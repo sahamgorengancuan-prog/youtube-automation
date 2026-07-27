@@ -24,3 +24,14 @@
 8. **BFL skills repo docs** live at non-`main` paths; guidance was taken from
    patterns already encoded in the engine's BFL adapter rather than that repo's
    files.
+9. **The simulated-provider preflight proves parsing, not provider behaviour.**
+   Its transports reproduce the response *shapes* the real APIs return
+   (including the ones that broke live runs), so response-handling bugs are
+   caught before money is spent. It cannot tell you that BFL's live endpoint
+   still exists, that a model slug is still served, or what an image looks
+   like. `simulated_adapters()` is reachable only by passing it explicitly to
+   `run_all(adapters=...)`; nothing in the notebook's live path can fall back
+   to it.
+10. **The standalone notebook is a snapshot.** Its embedded payload is the repo
+    at build time. `test_payload_is_in_sync_with_the_repo_sources` fails the
+    moment the sources move ahead of it — rebuild with `make standalone`.

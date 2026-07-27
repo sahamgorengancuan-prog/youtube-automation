@@ -90,3 +90,28 @@ def test_oneclick_notebook_keyless_run_all():
                           capture_output=True, text=True, timeout=1200)
     assert proc.returncode == 0, proc.stdout[-1500:] + proc.stderr[-1500:]
     assert "ONECLICK KEYLESS: PASS" in proc.stdout
+
+
+def test_live_path_end_to_end_against_simulated_providers(tmp_path):
+    """Walk the ENTIRE live pipeline — BFL generate, dual vision review, TTS,
+    multipart transcription, alignment, loudnorm pre-master, render, QC, Diamond
+    gate — against simulated provider responses. Zero network, zero cost.
+
+    This is the regression net for live-only defects that PREVIEW can never
+    reach: it is how the extensible-WAV crash and the accumulating frame drift
+    were found.
+    """
+    from sias_colab.oneclick import run_all
+    from sias_colab.preflight.simulation import simulated_adapters
+
+    result = run_all("Why does ice float on water?", workspace=tmp_path, live=True,
+                     adapters=simulated_adapters(), human_gates_approved=True,
+                     log=lambda *_a, **_k: None)
+
+    assert result["mode"] == "LIVE"
+    assert result["qc_status"] == "PASS"
+    assert result["diamond_status"] == "PASS"
+    assert Path(result["video"]).stat().st_size > 20_000
+    assert Path(result["ass"]).exists() and Path(result["srt"]).exists()
+    assert result["budget"]["image_calls"] >= result["scenes"]  # every scene really paid a call
+    assert result["budget"]["vision_calls"] >= 2 * result["scenes"]  # dual review ran per scene

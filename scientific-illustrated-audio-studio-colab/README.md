@@ -7,6 +7,35 @@ narasi alami** — bukan video AI. Mode awal `plan` **gratis** (nol panggilan AP
 **still illustrations + natural narration** — image-first, never video-first.
 Default `plan` mode is **free** (zero paid API calls).
 
+## ⭐ One-Click **STANDALONE** — mulai dari sini
+
+`notebooks/SIAS_One_Click_Standalone.ipynb` — satu notebook yang **membawa
+seluruh mesinnya sendiri**. Tidak ada `git clone`, tidak ada pembacaan GitHub:
+104 modul `sias` + `sias_colab` + `configs/default.yaml` tertanam di dalam
+notebook sebagai tar.gz base64 ber-SHA-256, dibongkar ke Colab saat Run All.
+
+**Hanya 4 isian** — `TOPIC`, `LANGUAGE`, `RUN_LIVE`, `HUMAN_GATES_APPROVED`.
+Semua sisanya sudah dikunci ke konfigurasi terbaik (model BFL `flux-2-pro`,
+suara `cedar`, batas 30 panggilan gambar, preview 0.5×, routing primer
+API + backend open-source sebagai fallback berlisensi). Tidak ada pilihan
+"open-source vs API" yang dibebankan ke pengguna.
+
+Sebelum satu rupiah pun keluar, sel **preflight** menjalankan **17 skenario
+simulasi jawaban provider** tanpa jaringan: BFL submit/poll/download (termasuk
+`polling_url` regional yang dulu memicu 404), OpenAI TTS (termasuk header WAV
+streaming `0xFFFFFFFF` yang dulu melaporkan narasi hantu 24,8 jam), transkripsi
+multipart, resolusi katalog model OpenRouter, review ganda Qwen+Gemini
+(JSON terbungkus prosa, skor di luar rentang, kode hard-fail palsu), dan
+penolakan mode offline. Preflight gagal → notebook berhenti, bukan memperingati.
+
+```
+make standalone   # bangun ulang notebook dari sumber
+make standalone-exec  # jalankan headless tanpa kunci: 0 error + MP4 nyata
+```
+
+Terverifikasi: Run All tanpa kunci → 8 sel, 0 error, preflight 17/17,
+`MODE: PREVIEW`, QC PASS, MP4 574 KB + SRT + ASS + ZIP.
+
 ## 💎 One-Click FULL (satu notebook terintegrasi, sekali Run All)
 
 `notebooks/SIAS_One_Click.ipynb` — SATU notebook: isi topik → **Runtime ▸ Run

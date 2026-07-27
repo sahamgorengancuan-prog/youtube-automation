@@ -7,8 +7,9 @@
     "3_provider_adapters": "DONE",
     "4_colab_ux": "DONE",
     "5_tests_and_smoke": "DONE",
-    "6_docs_and_final_audit": "DONE"
+    "6_docs_and_final_audit": "DONE",
+    "7_standalone_notebook_and_api_simulation": "DONE"
   },
   "paid_calls_made": 0,
-  "notes": "validation: ruff clean; 17/17 colab tests; 52/52 engine tests; notebooks valid; keyless plan exec OK; smoke PASS; 0 paid calls"
+  "notes": "validation: ruff clean; 55/55 colab tests; 62/62 engine tests; standalone notebook keyless Run All 0 errors (MP4+SRT+ASS+ZIP); 17/17 simulated provider scenarios; full LIVE path exercised on simulated adapters (Diamond PASS); 0 paid calls"
 }

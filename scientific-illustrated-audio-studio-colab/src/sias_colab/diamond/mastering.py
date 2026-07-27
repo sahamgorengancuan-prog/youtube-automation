@@ -10,18 +10,25 @@ Targets: narration pre-master ≈ -16 LUFS; final short-form mix ≈ -14 LUFS
 from __future__ import annotations
 
 import audioop
-import wave
 from pathlib import Path
 from typing import Any
 
+from sias.audio.wavio import open_wav
 from sias.exceptions import RenderError
 from sias.render.ffmpeg import run as ffmpeg_run
+
+
+# loudnorm works in double precision, so ffmpeg would write the WAV as 32-bit
+# float — WAVE_FORMAT_EXTENSIBLE (0xFFFE), which Python's `wave` module refuses
+# ("unknown format: 65534"). Every downstream audio gate here reads WAVs with
+# `wave`, so the pipeline's audio contract is 16-bit PCM and we pin it.
+PCM_CODEC = ["-c:a", "pcm_s16le"]
 
 
 def narration_premaster_cmd(src: str | Path, out: str | Path, lufs: float = -16.0,
                             true_peak: float = -1.0, ffmpeg: str = "ffmpeg") -> list[str]:
     return [ffmpeg, "-y", "-i", str(src),
-            "-af", f"loudnorm=I={lufs}:TP={true_peak}:LRA=11", str(out)]
+            "-af", f"loudnorm=I={lufs}:TP={true_peak}:LRA=11", *PCM_CODEC, str(out)]
 
 
 def final_mix_cmd(narration: str | Path, out: str | Path, music: str | Path | None = None,
@@ -31,13 +38,13 @@ def final_mix_cmd(narration: str | Path, out: str | Path, music: str | Path | No
     master to the final loudness target."""
     if music is None:
         return [ffmpeg, "-y", "-i", str(narration),
-                "-af", f"loudnorm=I={lufs}:TP={true_peak}:LRA=11", str(out)]
+                "-af", f"loudnorm=I={lufs}:TP={true_peak}:LRA=11", *PCM_CODEC, str(out)]
     return [ffmpeg, "-y", "-i", str(narration), "-i", str(music),
             "-filter_complex",
             (f"[1:a]volume={music_duck_db}dB[m];"
              f"[0:a][m]amix=inputs=2:duration=first:dropout_transition=0.5,"
              f"loudnorm=I={lufs}:TP={true_peak}:LRA=11[out]"),
-            "-map", "[out]", str(out)]
+            "-map", "[out]", *PCM_CODEC, str(out)]
 
 
 def master_narration(src: str | Path, out: str | Path, lufs: float = -16.0) -> Path:
@@ -51,7 +58,9 @@ def master_narration(src: str | Path, out: str | Path, lufs: float = -16.0) -> P
 
 def audio_checks(path: str | Path, max_silence_s: float = 2.5, window_s: float = 0.25) -> dict[str, Any]:
     """Clipping, long unexplained silence, stereo imbalance — from raw samples."""
-    with wave.open(str(path), "rb") as wf:
+    # open_wav (not wave.open): FFmpeg writes WAVE_FORMAT_EXTENSIBLE for filtered
+    # output, which the stdlib refuses outright.
+    with open_wav(path) as wf:
         width, channels, rate = wf.getsampwidth(), wf.getnchannels(), wf.getframerate()
         frames = wf.readframes(wf.getnframes())
     full_scale = float(2 ** (8 * width - 1) - 1)

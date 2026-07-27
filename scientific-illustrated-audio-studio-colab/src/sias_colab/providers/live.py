@@ -53,8 +53,10 @@ class LiveOpenAIAudio(OpenAIAudioAdapter):
     """Real TTS (JSON→bytes) + real multipart transcription."""
 
     def transcribe(self, audio_path: str | Path, model: str = "whisper-1") -> dict[str, Any]:
-        if not self.api_key:
-            raise ProviderRequestError("OPENAI_API_KEY missing", stage="openai_audio.transcribe")
+        # Goes through self.transport (http_transport in production) rather than
+        # calling urllib directly, so the multipart path is injectable and can be
+        # exercised against simulated responses.
+        transport = self._require("openai_audio.transcribe")
         boundary = uuid.uuid4().hex
         audio = Path(audio_path).read_bytes()
         parts: list[bytes] = []
@@ -74,7 +76,7 @@ class LiveOpenAIAudio(OpenAIAudioAdapter):
         )
         parts.append(f"--{boundary}--\r\n".encode())
         body = b"".join(parts)
-        status, parsed = http_transport(
+        status, parsed = transport(
             "POST",
             "https://api.openai.com/v1/audio/transcriptions",
             {"Authorization": f"Bearer {self.api_key}",

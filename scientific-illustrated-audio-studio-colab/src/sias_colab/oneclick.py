@@ -130,7 +130,11 @@ def run_all(
     human_gates_approved: bool = False,
     bfl_model: str = "",
     log=print,
+    adapters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """`adapters` exists so the live path can be exercised against *simulated*
+    provider responses (see `sias_colab.preflight.simulation`). Left at None —
+    which is what the notebook does — live adapters are built from real keys."""
     # Absolute workspace: ffmpeg's concat demuxer resolves list entries against
     # the list file's directory, so relative workspaces break the render.
     workspace = Path(workspace).resolve()
@@ -146,7 +150,8 @@ def run_all(
     episode_dir = workspace / "episodes" / studio.episode_id
     from .providers.live import build_live_adapters
 
-    adapters = build_live_adapters() if live else {}
+    if adapters is None:
+        adapters = build_live_adapters() if live else {}
     live_images = live and "bfl" in adapters
     live_audio = live and "openai_audio" in adapters
     mode = "LIVE" if (live_images and live_audio) else ("PARTIAL-LIVE" if (live_images or live_audio) else "PREVIEW")
