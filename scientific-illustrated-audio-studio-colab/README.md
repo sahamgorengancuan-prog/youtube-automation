@@ -7,15 +7,32 @@ narasi alami** — bukan video AI. Mode awal `plan` **gratis** (nol panggilan AP
 **still illustrations + natural narration** — image-first, never video-first.
 Default `plan` mode is **free** (zero paid API calls).
 
-## ⚡ One-Click mode (satu notebook, sekali Run All)
+## 💎 One-Click FULL (satu notebook terintegrasi, sekali Run All)
 
-`notebooks/SIAS_One_Click.ipynb` — SATU notebook terintegrasi: isi topik →
-**Runtime ▸ Run all** → seluruh pipeline berjalan otomatis dalam satu lintasan
-(plan → ilustrasi → narasi → alignment → render → QC → ZIP), tanpa bagian
-terpisah. Tanpa API key tetap selesai end-to-end sebagai **PREVIEW**
-ber-watermark (0 biaya); dengan key + `RUN_LIVE=True` menghasilkan episode live
-penuh (BFL + OpenAI TTS + review Qwen/Gemini bila ada key OpenRouter).
-Verified: keyless nbclient Run-All → 0 errors, QC PASS, MP4 dihasilkan.
+`notebooks/SIAS_One_Click.ipynb` — SATU notebook: isi topik → **Runtime ▸ Run
+all** → **10 tahap** berjalan otomatis dalam satu lintasan, termasuk seluruh
+lapisan Diamond:
+
+1. routing snapshot (hardware + backend primer/fallback, cek anti-self-approval)
+2. plan (riset → hook tournament → 8 beat → retention critic → scene specs)
+3. ilustrasi + **flag konsistensi** (palette/struktur vs style anchor)
+4. narasi SATU trek (OpenAI TTS live) / audio bed (preview)
+5. alignment kata + **jeda hening pra-reveal**
+6. **audio checks** (clipping / silence / stereo) + premaster −16 LUFS (live)
+7. render FFmpeg + **subtitle SRT & ASS Diamond** (chunk 2–6 kata, gaya
+   Default/Emphasis/Reveal/SciTerm)
+8. QC teknis (stream, durasi, blank frame, tolak placeholder di mode live)
+9. **Diamond Editorial Gate** — 5 pilar + **6 gerbang persetujuan manusia**
+10. manifest + ekspor ZIP
+
+Tanpa API key tetap selesai end-to-end sebagai **PREVIEW** ber-watermark
+(0 biaya); dengan key + `RUN_LIVE=True` → episode live penuh (BFL + OpenAI TTS
++ review Qwen VL 32B & Gemini 2.5 Flash). Status Diamond menahan `PASS` sampai
+Anda menyetujui 6 gerbang manusia (`HUMAN_GATES_APPROVED=True`) — tidak ada
+metrik otomatis yang bisa menggantikannya.
+
+Verified: keyless nbclient Run-All → 0 errors, QC PASS, Diamond
+HUMAN_GATES_PENDING, MP4 + SRT + ASS + ZIP dihasilkan.
 
 Notebook 17-bagian (`SIAS_Agentic_Colab_Control_Center.ipynb`) tetap tersedia
 untuk kontrol bertahap dengan gerbang persetujuan manusia.

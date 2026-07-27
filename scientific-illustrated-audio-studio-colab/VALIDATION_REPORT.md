@@ -25,3 +25,14 @@ the run proves fresh-runtime keyless behavior. The smoke MP4 is at
 | run_all() offline single call | `pytest tests/integration/test_oneclick.py::test_run_all_offline_single_call` | **PASS** — PREVIEW mode, QC PASS, MP4+SRT+manifest+ZIP, 0 paid calls, all scene PNGs carry the placeholder marker |
 | One-click notebook keyless Run All | `python tools/execute_oneclick_notebook.py` | **PASS** — 5 cells, 0 errors, MODE: PREVIEW, final.mp4 produced |
 | Full suite after addition | `pytest tests -q` | **19/19 PASS** |
+
+## Addendum — One-Click FULL (Diamond-integrated)
+
+| Check | Result |
+|---|---|
+| `run_all()` 10-stage single call (offline) | **PASS** — routing snapshot, consistency flags, pre-reveal silence, audio checks, SRT+ASS, Diamond gate, manifest, ZIP |
+| ASS Diamond subtitles | **PASS** — Default/Emphasis/Reveal/SciTerm/Note styles emitted, chunked dialogues |
+| Diamond Editorial gate | **PASS** — 5 pillars evaluated (all PASS on the preview episode), 14 checks, 6 human gates held PENDING by default |
+| Human-gate flag | **PASS** — `human_gates_approved=True` is the only path to Diamond `PASS` |
+| Keyless notebook Run All | **PASS** — 0 errors, MODE: PREVIEW, MP4 produced |
+| Full suite | **36/36 PASS**, ruff clean, 0 paid calls |

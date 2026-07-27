@@ -15,10 +15,12 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 
 INTRO = """\
-# ⚡ SIAS One-Click — Satu Notebook, Sekali Run, Jadi Video
+# 💎 SIAS One-Click FULL — Satu Notebook Terintegrasi, Sekali Run All
 
 **ID:** Isi topik di bawah → **Runtime ▸ Run all** → seluruh pipeline jalan otomatis:
-rencana cerita → ilustrasi → narasi → sinkronisasi audio → render → QC → ZIP.
+rencana cerita → ilustrasi (+cek konsistensi) → narasi (+mastering -16 LUFS) →
+sinkronisasi audio (+jeda hening pra-reveal) → render → subtitle SRT+ASS →
+QC teknis → **Diamond Editorial Gate** (5 pilar + 6 gerbang manusia) → manifest → ZIP.
 
 - **Tanpa API key**: tetap selesai end-to-end sebagai **PREVIEW** (panel ber-watermark + audio bed) — 0 biaya.
 - **Dengan key + `RUN_LIVE=True`**: episode live penuh (gambar BFL, narasi OpenAI TTS, review Qwen+Gemini bila ada key OpenRouter).
@@ -33,6 +35,9 @@ LANGUAGE  = "en"      # @param ["en", "id"]
 VOICE     = "cedar"   # @param {type:"string"}
 RUN_LIVE  = False     # @param {type:"boolean"}
 MAX_IMAGE_BUDGET = 30 # @param {type:"integer"}
+# Set True HANYA setelah Anda benar-benar meninjau hasil (hook, style, karakter,
+# pilot, audio, tonton di ponsel). Gerbang manusia tidak boleh dilewati otomatis.
+HUMAN_GATES_APPROVED = False  # @param {type:"boolean"}
 GITHUB_REPO = "https://github.com/sahamgorengancuan-prog/youtube-automation"
 
 print("Topik :", TOPIC)
@@ -92,6 +97,7 @@ RESULT = run_all(
     language=LANGUAGE,
     voice=VOICE,
     max_image_calls=MAX_IMAGE_BUDGET,
+    human_gates_approved=HUMAN_GATES_APPROVED,
 )
 
 print()
@@ -101,6 +107,10 @@ print("SELESAI —", RESULT["mode"], "| QC:", RESULT["qc_status"],
 print("Video   :", RESULT["video"])
 print("Caption :", RESULT["srt"])
 print("Manifest:", RESULT["manifest"])
+print("Subtitle:", RESULT["ass"], "(ASS Diamond) +", RESULT["srt"])
+print("Diamond :", RESULT["diamond_status"], "->", RESULT["diamond_report"])
+if RESULT.get("consistency_flags"):
+    print("⚑ Konsistensi:", RESULT["consistency_flags"])
 print("ZIP     :", RESULT["zip"])
 if RESULT["mode"] != "LIVE":
     print("⚠ PREVIEW/PARTIAL — watermark, bukan untuk publikasi. Isi key + RUN_LIVE=True untuk episode penuh.")

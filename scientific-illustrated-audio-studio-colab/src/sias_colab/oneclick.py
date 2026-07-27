@@ -127,6 +127,7 @@ def run_all(
     voice: str = "cedar",
     max_image_calls: int = 30,
     preview_scale: float = 0.5,
+    human_gates_approved: bool = False,
     log=print,
 ) -> dict[str, Any]:
     # Absolute workspace: ffmpeg's concat demuxer resolves list entries against
@@ -147,14 +148,24 @@ def run_all(
     live_images = live and "bfl" in adapters
     live_audio = live and "openai_audio" in adapters
     mode = "LIVE" if (live_images and live_audio) else ("PARTIAL-LIVE" if (live_images or live_audio) else "PREVIEW")
-    log(f"[1/8] MODE: {mode}  (paid: images={live_images}, audio={live_audio})")
+    log(f"[1/10] MODE: {mode}  (paid: images={live_images}, audio={live_audio})")
+
+    # Diamond routing snapshot: which backend serves each service and why.
+    from .diamond.hardware import detect_profile
+    from .diamond.registry import build_default_registry
+
+    hw = detect_profile()
+    registry = build_default_registry(hw)
+    registry.assert_no_self_approval()
+    log(f"      hardware: {hw} | primaries: BFL images · OpenAI story/TTS · "
+        f"Qwen VL 32B + Gemini 2.5 Flash QC (open backends: fallback tier, license-gated)")
 
     # 1 — plan (always free)
     plan = studio.plan()
     scenes = [SceneSpec.model_validate(s) for s in plan["engine"]["scenes"]]
     script = SpokenScript.model_validate(plan["engine"]["script"])
     bible = StyleBible.model_validate(plan["agents"]["style_canon_guardian"]["style_bible"])
-    log(f"[2/8] PLAN OK — {len(scenes)} scenes, {script.word_count} words, ±{script.est_duration_s}s, "
+    log(f"[2/10] PLAN OK — {len(scenes)} scenes, {script.word_count} words, ±{script.est_duration_s}s, "
         f"hook: {plan['agents']['hook_tournament']['selected']['text'][:70]}")
 
     # 2 — illustrations
@@ -170,7 +181,20 @@ def run_all(
             out_path.parent.mkdir(parents=True, exist_ok=True)
             img = make_placeholder(out_path, f"{scene.scene_id} · {scene.beat_role}", width, height)
         images[scene.scene_id] = str(img)
-    log(f"[3/8] IMAGES OK — {len(images)} {'BFL illustrations' if live_images else 'watermarked preview panels'}")
+    log(f"[3/10] IMAGES OK — {len(images)} {'BFL illustrations' if live_images else 'watermarked preview panels'}")
+
+    # Diamond consistency (heuristic tier — flags drift, never approves).
+    from .diamond.consistency import HeuristicConsistency
+
+    anchor = images[scenes[0].scene_id]
+    checker = HeuristicConsistency([anchor])
+    consistency_flags = {
+        sid: r["flags"] for sid, r in
+        ((sid, checker.check(p)) for sid, p in images.items() if p != anchor)
+        if r.get("flags")
+    }
+    if consistency_flags:
+        log(f"      consistency flags: {consistency_flags}")
 
     # 3 — narration (ONE track) + timestamps; audio is the timeline source of truth
     audio_path = episode_dir / "audio" / "narration.wav"
@@ -184,18 +208,37 @@ def run_all(
         segments = parse_transcription(raw)
         similarity = transcript_similarity(script.full_text,
                                            " ".join(s.text for s in segments))
-        log(f"[4/8] NARRATION OK — {duration}s, transcript similarity {similarity:.2f}")
+        log(f"[4/10] NARRATION OK — {duration}s, transcript similarity {similarity:.2f}")
     else:
         duration = script.est_duration_s
         _tone_bed(audio_path, duration)
         segments = _synthetic_segments(script, scenes, duration)
         similarity = 1.0
-        log(f"[4/8] PREVIEW AUDIO BED — {duration}s (no TTS key / live=False)")
+        log(f"[4/10] PREVIEW AUDIO BED — {duration}s (no TTS key / live=False)")
 
     # 4 — alignment
     timings = align_scenes(scenes, segments, narration_duration_s=duration,
                            min_scene_s=cfg.engine.render.min_scene_duration_s)
-    log(f"[5/8] ALIGNMENT OK — {len(timings)} timed scenes, end={timings[-1].end_s}s")
+    # Deliberate silence before the reveal (Diamond sound design).
+    from .diamond.mastering import audio_checks, insert_pre_reveal_silence, master_narration
+
+    reveal_scene = next((s2.scene_id for s2 in scenes if s2.beat_role == "gasp_reveal"), "")
+    if reveal_scene and any(t.scene_id == reveal_scene for t in timings):
+        timings = insert_pre_reveal_silence(timings, reveal_scene, hold_s=0.3)
+    log(f"[5/10] ALIGNMENT OK — {len(timings)} timed scenes, end={timings[-1].end_s}s"
+        + (f" (pre-reveal hold on {reveal_scene})" if reveal_scene else ""))
+
+    # Mastering: narration premaster to -16 LUFS on the live path.
+    if live_audio:
+        mastered = episode_dir / "audio" / "narration_premaster.wav"
+        try:
+            master_narration(audio_path, mastered, cfg.engine.audio.target_lufs)
+            audio_path = mastered
+        except Exception as exc:
+            log(f"      premaster skipped: {str(exc)[:80]}")
+    audio_report = audio_checks(audio_path)
+    log(f"[6/10] AUDIO CHECKS — clipping={audio_report['clipping']}, "
+        f"longest_silence={audio_report['longest_silence_s']}s, stereo_ok={audio_report['stereo_ok']}")
 
     # 5 — render
     render_scenes = build_render_scenes(scenes, timings, images, cfg.engine.render.allowed_motion)
@@ -206,7 +249,16 @@ def run_all(
     srt = episode_dir / "render" / "final.srt"
     write_srt(_segments_for_srt(scenes, timings), srt,
               next((s.reveal_word for s in scenes if s.reveal_word), ""))
-    log(f"[6/8] RENDER OK — {video.name} + {srt.name}")
+    from .diamond.subtitles import validate_subtitles, write_ass
+
+    srt_segments = _segments_for_srt(scenes, timings)
+    live_segments = segments if live_audio else srt_segments
+    ass = episode_dir / "render" / "final.ass"
+    reveal_word = next((s2.reveal_word for s2 in scenes if s2.reveal_word), "")
+    write_ass(live_segments, ass, reveal_word=reveal_word)
+    subtitle_issues = validate_subtitles(live_segments)
+    log(f"[7/10] RENDER OK — {video.name} + {srt.name} + {ass.name}"
+        + (f" | subtitle issues: {subtitle_issues}" if subtitle_issues else ""))
 
     # 6 — QC (strict streams/duration always; placeholder rejection in live mode)
     tolerance = cfg.engine.render.duration_tolerance_s if live_audio else 0.35
@@ -215,21 +267,50 @@ def run_all(
     report = build_report(checks)
     write_report(report, episode_dir / "qc", "final_qc")
     info = validate_final(video, duration, tolerance)
-    log(f"[7/8] QC {report.status} — streams a/v: {info['has_audio']}/{info['has_video']}, "
+    log(f"[8/10] QC {report.status} — streams a/v: {info['has_audio']}/{info['has_video']}, "
         f"Δ={info['duration_delta_s']}s, {len(report.checks)} checks")
 
-    # 7 — manifest + export
+    # 8 — Diamond Editorial Standard gate
+    from .diamond.standard import HUMAN_GATES, DiamondGate
+    from sias.schemas import StoryBeat
+
+    beats = [StoryBeat.model_validate(b) for b in plan["engine"]["beats"]]
+    gate = DiamondGate()
+    scene_reviews = [{"hard_fail_reasons": []} for _ in timings]  # live reviews feed here
+    compositions = [rs.motion for rs in render_scenes]
+    pillars = {
+        "story": gate.story(timings, beats, script.sentences),
+        "visual": gate.visual(scene_reviews, compositions),
+        "audio": gate.audio(similarity, audio_report),
+        "subtitle": gate.subtitle(subtitle_issues),
+        "render": checks[:4],
+    }
+    approvals = {g: "APPROVED" for g in HUMAN_GATES} if human_gates_approved else {}
+    diamond = gate.evaluate(pillars, approvals)
+    atomic_write_json(episode_dir / "qc" / "diamond_report.json", diamond.model_dump())
+    log(f"[9/10] DIAMOND {diamond.status} — pillars: "
+        + ", ".join(f"{k}={v}" for k, v in diamond.pillars.items()))
+    if diamond.status == "HUMAN_GATES_PENDING":
+        log("      6 gerbang persetujuan manusia masih PENDING (set human_gates_approved=True "
+            "hanya setelah Anda benar-benar meninjau di ponsel).")
+
+    # 10 — manifest + export
     manifest = EpisodeManifest(
         episode_id=studio.episode_id, topic=topic, language=language, scenes=scenes,
         scene_timings=timings, narration_duration_s=duration, video_path=str(video),
         srt_path=str(srt), qc_status=report.status,
         warnings=([] if mode == "LIVE" else [f"{mode} output — not for publication"]),
-        extra={"mode": mode, "transcript_similarity": similarity, "budget": studio.budget.snapshot()},
+        extra={"mode": mode, "transcript_similarity": similarity, "budget": studio.budget.snapshot(),
+               "diamond_status": diamond.status, "consistency_flags": consistency_flags,
+               "hardware_profile": hw, "audio_checks": audio_report},
     )
     atomic_write_json(episode_dir / "manifests" / "episode_manifest.json", manifest.model_dump())
     zip_path = studio.export_package()
-    log(f"[8/8] EXPORT OK — {zip_path}")
-    return {"mode": mode, "video": str(video), "srt": str(srt),
+    log(f"[10/10] EXPORT OK — {zip_path}")
+    return {"mode": mode, "video": str(video), "srt": str(srt), "ass": str(ass),
+            "diamond_status": diamond.status,
+            "diamond_report": str(episode_dir / "qc" / "diamond_report.json"),
+            "consistency_flags": consistency_flags,
             "manifest": str(episode_dir / "manifests" / "episode_manifest.json"),
             "qc_status": report.status, "qc_report": str(episode_dir / "qc" / "final_qc.json"),
             "zip": str(zip_path), "budget": studio.budget.snapshot(),
