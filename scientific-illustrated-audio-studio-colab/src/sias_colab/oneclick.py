@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from sias.audio.alignment import align_scenes
-from sias.audio.silence import assert_not_silent
+from sias.audio.silence import assert_not_silent, assert_plausible_duration
 from sias.audio.transcription import parse_transcription, transcript_similarity
 from sias.filesystem import atomic_write_json
 from sias.render.captions import write_srt
@@ -206,6 +206,11 @@ def run_all(
                                      model=cfg.engine.audio.tts_model, voice=voice)
         stats = assert_not_silent(audio_path, cfg.engine.audio.silent_peak_threshold_db)
         duration = stats["duration_s"]
+        # Refuse an implausible narration BEFORE it reaches alignment/render.
+        assert_plausible_duration(duration, script.est_duration_s)
+        if stats.get("header_mismatch"):
+            log(f"      note: WAV header claimed {stats['header_frames']} frames, "
+                f"actual PCM has {stats['actual_frames']} (streamed WAV) — using real bytes")
         raw = adapters["openai_audio"].transcribe(audio_path, cfg.engine.audio.transcription_model)
         segments = parse_transcription(raw)
         similarity = transcript_similarity(script.full_text,

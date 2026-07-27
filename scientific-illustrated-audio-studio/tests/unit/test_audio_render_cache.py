@@ -40,6 +40,45 @@ def test_silence_detection(tmp_path):
         assert_not_silent(silent)
 
 
+def test_streamed_wav_placeholder_header_duration(tmp_path):
+    """Regression for a real live failure: OpenAI TTS streams a WAV whose data
+    chunk size is a placeholder (0xFFFFFFFF). `wave` then reports 2**31-1 frames
+    -> a phantom 89478s (~24.8h) narration that made ffmpeg render for hours.
+    Duration must come from the PCM actually present."""
+    path = _write_wav(tmp_path / "streamed.wav", seconds=2.0, rate=24000)
+    raw = bytearray(path.read_bytes())
+    raw[40:44] = (0xFFFFFFFF).to_bytes(4, "little")  # data chunk size placeholder
+    raw[4:8] = (0xFFFFFFFF).to_bytes(4, "little")    # RIFF size placeholder
+    path.write_bytes(bytes(raw))
+
+    stats = wav_stats(path)
+    assert stats["header_frames"] == 2_147_483_647       # the phantom
+    assert stats["header_mismatch"] is True
+    assert stats["duration_s"] == pytest.approx(2.0, abs=0.05)  # the truth
+    assert stats["duration_s"] < 10  # never the 89478s that broke the live run
+
+
+def test_duration_plausibility_gate():
+    from sias.audio.silence import assert_plausible_duration
+    from sias.exceptions import AssetIntegrityError
+
+    assert_plausible_duration(31.0, 31.35)  # fine
+    with pytest.raises(AssetIntegrityError, match="hard cap"):
+        assert_plausible_duration(89478.485, 31.35)
+    with pytest.raises(AssetIntegrityError, match="implausible"):
+        assert_plausible_duration(300.0, 31.35)
+    with pytest.raises(AssetIntegrityError, match="zero"):
+        assert_plausible_duration(0.0, 31.35)
+
+
+def test_render_refuses_absurd_clip_duration():
+    from sias.exceptions import RenderError
+
+    scene = RenderScene(scene_id="S08", image_path="i.png", start_s=0, end_s=89450.7, motion="hold")
+    with pytest.raises(RenderError, match="sanity cap"):
+        clip_cmd(scene, "out.mp4", 1080, 1920, 30)
+
+
 def test_wav_stats_fields(tmp_path):
     stats = wav_stats(_write_wav(tmp_path / "a.wav"))
     assert set(stats) >= {"duration_s", "peak_dbfs", "rms_dbfs", "clipping"}

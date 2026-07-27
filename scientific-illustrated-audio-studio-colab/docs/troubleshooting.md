@@ -18,3 +18,4 @@
 | Higgsfield error | OPSIONAL — nonaktifkan (default) dan pipeline inti tetap lengkap. |
 | `ProviderSchemaError [bfl.poll] status 404` | **FIXED** — BFL mengembalikan `polling_url` spesifik region (mis. `api.us1.bfl.ai`); adapter kini selalu memakai URL itu, bukan menyusun `{base}/get_result?id=`. Perbarui repo bila Anda memakai salinan lama. |
 | `ProviderRequestError [bfl.submit] endpoint not found` | Nama model salah untuk akun/API Anda. Ganti `BFL_MODEL` di form notebook (`flux-2-pro`, `flux-2-pro-preview`, `flux-2-flex`, `flux-pro-1.1`). |
+| Durasi narasi absurd (mis. `89478s`) / render ffmpeg `TimeoutExpired` | **FIXED** — WAV streaming dari OpenAI TTS memakai placeholder ukuran chunk `0xFFFFFFFF`, sehingga `wave` melaporkan 2³¹−1 frame (≈24,8 jam). Durasi kini dihitung dari byte PCM nyata; ada gerbang kewajaran durasi sebelum alignment dan cap 900 dtk per klip di renderer. |

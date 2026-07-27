@@ -29,6 +29,9 @@ def _motion_filter(motion: str, width: int, height: int, fps: int, duration_s: f
     return f"scale={width}:{height}:flags=lanczos,fps={fps}"
 
 
+MAX_CLIP_SECONDS = 900.0  # a still-image clip longer than this is a bug, not a design
+
+
 def clip_cmd(
     scene: RenderScene,
     out_path: str | Path,
@@ -40,6 +43,15 @@ def clip_cmd(
     ffmpeg: str = "ffmpeg",
 ) -> list[str]:
     duration = max(0.1, scene.end_s - scene.start_s)
+    if duration > MAX_CLIP_SECONDS:
+        # Guards against a corrupt upstream duration (e.g. a streamed-WAV header
+        # reporting a phantom 24-hour narration) burning the whole render budget.
+        raise RenderError(
+            f"scene {scene.scene_id}: clip duration {duration:.1f}s exceeds the "
+            f"{MAX_CLIP_SECONDS:.0f}s sanity cap — upstream timing is wrong; "
+            "check the narration duration before rendering",
+            stage="render.clip",
+        )
     vf = _motion_filter(scene.motion, width, height, fps, duration, max_zoom_pct, max_pan_pct)
     return [
         ffmpeg,
