@@ -3,9 +3,9 @@
   "branch": "claude/scientific-animation-studio-mvp-65rpn4",
   "milestones": {
     "1_source_audit_and_scaffold": "DONE",
-    "2_offline_core": "IN_PROGRESS",
-    "3_provider_adapters": "PENDING",
-    "4_colab_ux": "PENDING",
+    "2_offline_core": "DONE",
+    "3_provider_adapters": "DONE",
+    "4_colab_ux": "IN_PROGRESS",
     "5_tests_and_smoke": "PENDING",
     "6_docs_and_final_audit": "PENDING"
   },
