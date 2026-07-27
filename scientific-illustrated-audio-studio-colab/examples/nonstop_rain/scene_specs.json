@@ -1,0 +1,130 @@
+[
+  {
+    "scene_id": "S01",
+    "beat_role": "cold_open",
+    "narration": "Imagine what happens if it rains nonstop for one year \u2014 and it doesn't stop.",
+    "visual_objective": "cold_open beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S02",
+    "beat_role": "fact_1",
+    "narration": "At first, everything looks almost normal. Almost.",
+    "visual_objective": "fact_1 beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S03",
+    "beat_role": "fact_2",
+    "narration": "Then the ground itself stops cooperating.",
+    "visual_objective": "fact_2 beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S04",
+    "beat_role": "fact_3",
+    "narration": "And the systems we built quietly hit their limits.",
+    "visual_objective": "fact_3 beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S05",
+    "beat_role": "explanation",
+    "narration": "Here's the mechanism your gut missed.",
+    "visual_objective": "explanation beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [
+      "narrating scientist"
+    ],
+    "props": [
+      "causal arrows"
+    ],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S06",
+    "beat_role": "scale_example",
+    "narration": "Scale it up, and the numbers get absurd fast.",
+    "visual_objective": "scale_example beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S07",
+    "beat_role": "gasp_reveal",
+    "narration": "But the real surprise isn't the water at all.",
+    "visual_objective": "gasp_reveal beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "all",
+    "continuity_refs": [],
+    "actual_start_s": null,
+    "actual_end_s": null
+  },
+  {
+    "scene_id": "S08",
+    "beat_role": "payoff",
+    "narration": "So next time it rains, you'll know what's really at stake.",
+    "visual_objective": "payoff beat for What happens if it rains nonstop for one year?",
+    "composition": "single hero subject, clear silhouette, safe caption zone",
+    "characters": [
+      "narrating scientist"
+    ],
+    "props": [],
+    "scientific_labels": [],
+    "visual_joke": "",
+    "reveal_word": "",
+    "continuity_refs": [
+      "S07"
+    ],
+    "actual_start_s": null,
+    "actual_end_s": null
+  }
+]

@@ -1,0 +1,28 @@
+{
+  "topic": "What happens if it rains nonstop for one year?",
+  "audience": "curious general audience, age 15+",
+  "claims": [
+    {
+      "claim_id": "C01",
+      "statement": "Under the conditions of 'What happens if it rains nonstop for one year?', the first-order effect appears sooner than intuition expects.",
+      "sources": [],
+      "confidence": 0.3,
+      "caveat": "OFFLINE-DRAFT: placeholder claim; requires research + real sources before production."
+    },
+    {
+      "claim_id": "C02",
+      "statement": "The system involved in 'What happens if it rains nonstop for one year?' has a finite capacity; past saturation, behaviour changes regime.",
+      "sources": [],
+      "confidence": 0.3,
+      "caveat": "OFFLINE-DRAFT: placeholder claim; requires research + real sources before production."
+    },
+    {
+      "claim_id": "C03",
+      "statement": "A second-order consequence of 'What happens if it rains nonstop for one year?' acts on a much larger scale than the visible one.",
+      "sources": [],
+      "confidence": 0.3,
+      "caveat": "OFFLINE-DRAFT: placeholder claim; requires research + real sources before production."
+    }
+  ],
+  "summary": "Offline draft research pack for: What happens if it rains nonstop for one year?"
+}

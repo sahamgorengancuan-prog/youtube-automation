@@ -1,0 +1,5 @@
+run_mode: production
+budgets:
+  max_image_calls: 30
+  max_vision_calls: 80
+  max_tts_characters: 9000

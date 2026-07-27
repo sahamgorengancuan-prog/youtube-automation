@@ -1,0 +1,14 @@
+{
+  "project": "SIAS Agentic Colab Studio",
+  "branch": "claude/scientific-animation-studio-mvp-65rpn4",
+  "milestones": {
+    "1_source_audit_and_scaffold": "DONE",
+    "2_offline_core": "IN_PROGRESS",
+    "3_provider_adapters": "PENDING",
+    "4_colab_ux": "PENDING",
+    "5_tests_and_smoke": "PENDING",
+    "6_docs_and_final_audit": "PENDING"
+  },
+  "paid_calls_made": 0,
+  "notes": "engine = existing sias package (52 tests green); third-party repos pinned via ls-remote"
+}

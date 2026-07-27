@@ -1,0 +1,95 @@
+run_mode: plan
+allow_production_without_pilot: false
+
+project:
+  title: "Untitled episode"
+  topic: ""
+  audience: "curious general audience, age 15+"
+  language: "en"
+  aspect_ratio: "9:16"
+  width: 1080
+  height: 1920
+  target_duration_min_s: 45
+  target_duration_max_s: 75
+
+story:
+  min_scenes: 7
+  max_scenes: 9
+  target_wpm_min: 145
+  target_wpm_max: 165
+  facts_count: 3
+  catchphrase: "Your intuition skipped a page—let's put the science back."
+  catchphrase_max_uses: 1
+  first_payoff_deadline_s: 12
+
+visual:
+  identity_name: "Scientific Notebook Cartoon"
+  draft_model: "flux-2-klein-9b"
+  production_model: "flux-2-pro"
+  premium_model: "flux-2-max"
+  typography_model: "flux-2-flex"
+  candidates_normal: 2
+  candidates_hero: 3
+  max_repairs_per_scene: 2
+  max_reference_images: 8
+  output_format: "png"
+  seed_base: 270726
+  palette:
+    ink: "#252525"
+    paper: "#F4EEDC"
+    primary: "#2F6F8F"
+    attention: "#E48A3A"
+    danger: "#C94C4C"
+    nature: "#5F8A55"
+    secondary: "#8A73A8"
+
+vision:
+  approval_threshold: 0.82
+  disagreement_threshold: 0.18
+  qwen_family_prefix: "qwen/"
+  gemini_family_prefix: "google/"
+  deny_training_or_data_collection: true
+
+audio:
+  tts_model: "gpt-4o-mini-tts"
+  voice: "cedar"
+  output_format: "wav"
+  target_lufs: -16
+  true_peak_db: -1.5
+  silent_peak_threshold_db: -55
+  generate_per_scene: false
+  transcription_model: "whisper-1"
+
+render:
+  backend: "ffmpeg"
+  fps: 30
+  duration_tolerance_s: 0.08
+  captions: true
+  caption_font_path: ""
+  min_scene_duration_s: 2.4
+  max_zoom_pct: 4.0
+  max_pan_pct: 3.0
+
+budgets:
+  max_image_calls: 30
+  max_vision_calls: 80
+  max_tts_characters: 9000
+  hard_stop_on_budget_exceeded: true
+
+privacy:
+  write_api_keys_to_logs: false
+  write_full_auth_headers: false
+  openrouter_data_collection: "deny"
+
+retries:
+  network_max_attempts: 4
+  generation_max_attempts: 2
+  repair_max_attempts: 2
+
+cache:
+  enabled: true
+  validation: "input_hash_and_output_sha256"
+
+logging:
+  level: "INFO"
+  structured_json: true
