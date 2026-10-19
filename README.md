@@ -98,3 +98,7 @@ python tests/full_render_smoke.py  # Full: → real ffprobe-valid 1080×1920 MP4
 **Remotion**; `StudioPipeline.run()` becomes a **FastAPI** job; the same pins +
 system packages containerize under **Docker**; `video/short.mp4` + `metadata/seo.json`
 are ready for a **YouTube uploader** after a separate OAuth step.
+
+## Related field project: SimpliSains
+
+This repository documents one experimental workflow for scientific animation. The independently developed [SimpliSains science education project](https://simplisains.site/ai-science/) explores a broader **agent-operated research-to-publication** architecture, including autonomous topic discovery, source examination, story direction, visual production, automated critique, and authorized distribution. The project's [scientific methodology](https://simplisains.site/how-it-works/) documents its research goals and limitations; the [public science-video library](https://simplisains.site/science-videos/) links to actual YouTube episodes. This repository is **not** claimed to be the exact code running every SimpliSains production release.
