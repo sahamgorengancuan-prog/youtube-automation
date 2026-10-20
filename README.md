@@ -1,104 +1,55 @@
-# Autonomous Scientific Animation Studio
+# SIAS — Nemotron Evidence Crew
 
-An autonomous studio that turns a **topic** into a finished, upload-ready
-scientific short. Delivered as self-contained Google Colab notebooks that also
-write an importable `src/autostudio/` package for FastAPI / Docker.
+**Nebius x NVIDIA Global AI Hackathon 2026** | Best Apps and Agents
 
-## Two notebooks
+SIAS (SimpliSains) is an existing agent-operated science media company. Its research-to-publishing workflow coordinates specialized agents for scientific research, editorial scripting, storyboarding, illustration, narration, quality control and distribution. This **new hackathon sidecar** is a scientific claim verification agent designed to reduce unsupported explanations before they reach the production stage.
 
-| Notebook | Scope | Output |
-|---|---|---|
-| [`Autonomous_Scientific_Animation_Studio_Full_Pipeline.ipynb`](./Autonomous_Scientific_Animation_Studio_Full_Pipeline.ipynb) | **Phase 1 + Phase 2** | validated **1080×1920 MP4** + all sources |
-| [`Autonomous_Scientific_Animation_Studio_MVP.ipynb`](./Autonomous_Scientific_Animation_Studio_MVP.ipynb) | **Phase 1 only** | storyboard + static scene preview |
+## NVIDIA + Nebius implementation
 
-```text
-Topic
-  → Free web research (DDGS + Wikipedia + Crossref + OpenAlex + arXiv)
-  → Deterministic scientific validation
-  → Retention-first script (timed beats)
-  → Storyboard JSON  →  Scene plan (asset catalogue)
-  → Deterministic SVG asset generation + content-addressed cache
-  → Static scene composition
-  ── Phase 2 ────────────────────────────────────────────────
-  → Voice-over (Edge TTS → espeak-ng fallback)
-  → Safe-zone subtitles (SRT + ASS)
-  → Procedural music + sound cues (ducked, loudness-normalised)
-  → Animated 1080×1920 MP4 (FFmpeg zoompan) with burned-in captions
-  → ffprobe self-validation  →  SEO metadata  →  manifest + ZIP
-```
+A scientific claim, with source snippets and source IDs, is sent to NVIDIA Nemotron through **Nebius Token Factory** via its OpenAI-compatible chat-completion endpoint. The response is verified against an output contract: supported/contradicted/insufficient_evidence, confidence, cited source IDs, explanation and a safer suggested revision.
 
-## Why these design choices
+- Nano: **nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B** for frequent economical checks.
+- Super: **nvidia/nemotron-3-super-120b-a12b** for optional advanced reasoning.
+- Hosted by **Nebius Token Factory**, API base https://api.tokenfactory.nebius.com/v1.
 
-- **One notebook, one importable package.** Every section writes a real module
-  into `src/autostudio/`; nothing lives only in a cell. `StudioPipeline.run()`
-  is the single entry point and drops straight into a FastAPI background job.
-- **Deterministic SVG.** The LLM never writes SVG — it only names an `asset_type`
-  from a whitelist, and Python renders the flat vector from a controlled template.
-  Reproducible, editable, cacheable; no gradients/textures/raster.
-- **Cache-first, content-addressed.** Web search, LLM responses, SVG assets,
-  voice clips, rasters, and rendered scene clips are all keyed by content hash.
-  Re-running an identical stage is a cache hit, never a regeneration.
-- **Local-first models.** Qwen (HuggingFace) primary; OpenAI is an optional
-  fallback used only if `OPENAI_API_KEY` is set and local generation fails.
-- **Free-only audio/video.** Edge TTS + espeak-ng for voice; FFmpeg `lavfi`
-  synthesises the music bed and sound cues — no external assets, no licensing.
-- **Self-validating output.** The final MP4 is probed with `ffprobe` for
-  resolution, fps, duration, and audio stream before the run is declared done.
-- **Graceful degradation.** Every generative stage has a deterministic fallback,
-  so a flaky network never aborts a run.
+The code never substitutes a different inference provider. Credentials must be supplied through the environment, not source files.
 
-## Repository layout
+## Quickstart (Python 3.10+; standard library only)
 
-```
-Autonomous_Scientific_Animation_Studio_Full_Pipeline.ipynb   # Phase 1 + 2 (run in Colab)
-Autonomous_Scientific_Animation_Studio_MVP.ipynb             # Phase 1 only
-src/autostudio/                                              # importable package (22 modules)
-tests/smoke_test.py                                          # Phase-1 offline deterministic test
-tests/full_render_smoke.py                                   # full media path -> real MP4 (offline)
-requirements.txt
-```
+Run these commands from this folder:
 
-## Topic input modes
+1. Set NEBIUS_API_KEY as a secure environment variable (do not paste it into GitHub).
+2. Run: python3 evidence_crew.py --dry-run
+3. Run: python3 evidence_crew.py --model nano --case sample_case.json --output results/nano.json
+4. Run: python3 app.py
+5. Open http://127.0.0.1:18978 and click Run live verification.
 
-- **manual** — use the topic verbatim.
-- **keyword** — expand a keyword (e.g. `"Black Hole"`) into ranked candidates, select the best.
-- **auto** — discover trending science headlines, rank, and select.
+No external call takes place on --dry-run. A qualifying live result includes response_id, the NVIDIA model name, token usage and measured latency.
 
-## Per-run output
+## Architecture
 
-```
-output/<run_id>/
-  research/{research.json, validation.json}   scripts/script.json
-  storyboards/storyboard.json                 metadata/seo.json
-  assets/<asset_id>.svg                        scenes/scene01.svg …
-  audio/{voice_track.m4a, final_audio.m4a, timeline.json}
-  captions/{captions.srt, captions.ass}        video/short.mp4  (+ render_report.json)
-  manifest.json                                (+ <run_id>.zip)
-```
+SIAS Research Agent -> Claim + evidence excerpts -> Nebius / NVIDIA Nemotron -> Structured JSON verdict -> Editorial QA feedback -> Existing SIAS workflow.
 
-## Testing (institutional-grade, offline)
+The implementation has an actual live inference path at POST /api/verify (fixed demo claim), plus GET /api/status and GET /api/case. All endpoints are bounded by DEMO_MAX_CALLS; default localhost binding prevents uncontrolled anonymous spending.
 
-Both tests run with **no network and no model** and are the CI gates:
+## Tests and scientific integrity
 
-```bash
-# System deps for the full render test:
-apt-get install -y ffmpeg espeak-ng libcairo2 libpango-1.0-0 fonts-dejavu-core
-pip install -r requirements.txt   # or the light subset for the Phase-1 test
+Run: python3 -m unittest discover -s tests -v
 
-python tests/smoke_test.py         # Phase 1: validation → SVG cache → composition
-python tests/full_render_smoke.py  # Full: → real ffprobe-valid 1080×1920 MP4
-```
+Unit tests validate input, output schema and a mocked transport response. Mock tests do not count as live Nebius inference. Evidence snippets in sample_case.json are short context, not a reproduced full research article.
 
-`tests/full_render_smoke.py` was validated on FFmpeg 6.1 + CairoSVG, producing a
-1080×1920 @ 30fps H.264+AAC MP4 that passes every `ffprobe` check.
+For model comparisons, evaluate the same set of claim/source pairs on both variants and record format validity, expert-checked correctness, useful corrections, token usage and latency. Do not infer accuracy from model confidence. Do not claim cost savings without a measured baseline and actual Nebius token costs.
 
-## Phase 2 / production integration
+## Working SIAS production baseline
 
-`storyboard.json` + the SVG asset cache feed directly into **Motion Canvas** or
-**Remotion**; `StudioPipeline.run()` becomes a **FastAPI** job; the same pins +
-system packages containerize under **Docker**; `video/short.mp4` + `metadata/seo.json`
-are ready for a **YouTube uploader** after a separate OAuth step.
+Published video: https://youtu.be/cS6SBdIW0KA. Original SIAS black-hole episode manifest: 12 research sources, eight scenes, 59.375s video, estimated production spend US$0.4283. A separate VPS UAT captured a real monitor showing 12 labeled roles, sequential handoffs and two parallel worker groups, operating on artifacts of the already-produced episode. The UAT replay is not a fresh video generation, nor does it itself demonstrate Nemotron calls.
 
-## Related field project: SimpliSains
+**Status note:** Source code and offline tests are available now. Do not represent the Nebius integration as validated until a live Token Factory response is captured. A missing API key leads to a clear error, not fake success.
 
-This repository documents one experimental workflow for scientific animation. The independently developed [SimpliSains science education project](https://simplisains.site/ai-science/) explores a broader **agent-operated research-to-publication** architecture, including autonomous topic discovery, source examination, story direction, visual production, automated critique, and authorized distribution. The project's [scientific methodology](https://simplisains.site/how-it-works/) documents its research goals and limitations; the [public science-video library](https://simplisains.site/science-videos/) links to actual YouTube episodes. This repository is **not** claimed to be the exact code running every SimpliSains production release.
+## Safety and privacy
+
+No keys or .env files should be committed. The demo binds to loopback and implements a strict global live-call budget. Do not deploy it publicly without an additional access-control layer. This is assistance for scientific review, not an automatic factual guarantee.
+
+## License
+
+The files inside this hackathon module are MIT-licensed (see LICENSE). The license does not implicitly relicense other files elsewhere in the pre-existing repository.
