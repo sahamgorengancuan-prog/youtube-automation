@@ -10,9 +10,17 @@ Use ONLY supplied source excerpts, not outside facts.
 Do not invent source titles, URLs or factual claims.
 If sources do not establish the claim, verdict MUST be insufficient_evidence.
 Never approve unsupported numeric examples as scientific facts.
-Return JSON ONLY, with keys: verdict (supported|contradicted|insufficient_evidence),
-confidence (number 0..1), cited_source_ids (array of integers),
-explanation (string), suggested_revision (string)."""
+Return ONE complete JSON object, not a Markdown block, and ALWAYS include
+ALL five mandatory keys using these exact types:
+1. verdict: one of supported, contradicted, insufficient_evidence
+2. confidence: JSON number between 0 and 1
+3. cited_source_ids: JSON array of valid source IDs (integers only)
+4. explanation: a NONEMPTY string explaining source support or lack thereof
+5. suggested_revision: a NONEMPTY string with an editorial-safe version of the
+claim. Even if supported, restate the claim accurately; never use null or an
+empty string. Never omit any of these fields.
+For a claim with an exact quantity, use insufficient_evidence unless the
+provided excerpts actually justify that precise number. Output only JSON."""
 
 def read_case(path):
     data=json.loads(Path(path).read_text(encoding="utf-8"))
@@ -51,7 +59,7 @@ def call_nebius(payload,model=NANO,timeout=60):
     base=os.getenv("NEBIUS_BASE_URL",BASE).rstrip("/")
     if not base.startswith("https://") or not base.split("/")[2].endswith(".nebius.com"):
         raise ValueError("Only HTTPS Nebius Token Factory endpoint is supported")
-    data=json.dumps({"model":model,"messages":payload,"temperature":0,"max_tokens":500}).encode()
+    data=json.dumps({"model":model,"messages":payload,"temperature":0,"max_tokens":1400 if model==SUPER else 750}).encode()
     req=urllib.request.Request(base+"/chat/completions",data=data,method="POST",
        headers={"Content-Type":"application/json","Authorization":"Bearer "+key})
     try:
