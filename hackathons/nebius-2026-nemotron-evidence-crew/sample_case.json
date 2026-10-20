@@ -1,0 +1,16 @@
+{
+  "episode": "How can black holes slow down time?",
+  "claim": "A clock deeper in a gravitational field runs more slowly relative to a clock far away.",
+  "sources": [
+    {
+      "title": "Gravitational time dilation",
+      "url": "https://en.wikipedia.org/wiki/Gravitational_time_dilation",
+      "excerpt": "Gravitational time dilation is an actual difference of elapsed time between clocks at different distances from a gravitating mass."
+    },
+    {
+      "title": "General relativity",
+      "url": "https://en.wikipedia.org/wiki/General_relativity",
+      "excerpt": "In the theory of general relativity, clocks in different gravitational potentials measure different elapsed times."
+    }
+  ]
+}
