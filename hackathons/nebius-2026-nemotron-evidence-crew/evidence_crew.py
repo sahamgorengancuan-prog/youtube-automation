@@ -2,7 +2,7 @@
 import argparse,datetime,json,os,re,time,urllib.request,urllib.error
 from pathlib import Path
 BASE="https://api.tokenfactory.nebius.com/v1"
-NANO="nvidia/nvidia-nemotron-3-nano-30b-a3b"
+NANO="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
 SUPER="nvidia/nemotron-3-super-120b-a12b"
 ALLOWED={"supported","contradicted","insufficient_evidence"}
 SYSTEM="""You are the independent SIAS scientific claim-verification agent.
