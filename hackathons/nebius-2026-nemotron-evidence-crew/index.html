@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nemotron Evidence Crew | SIAS</title><style>
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#090f14;color:#eaf2f3}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top left,#1c2b2b,#090f14 60%);min-height:100vh}
+.wrap{max-width:1200px;margin:auto;padding:42px 30px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2e3a40;padding-bottom:22px}
+.brand{font-size:14px;color:#e9b17e;letter-spacing:2px;font-weight:800}h1{font-size:36px;line-height:1.1;margin:22px 0 12px}p{color:#a8b8c3;line-height:1.6}
+.tag{border:1px solid #4f6f66;padding:8px 11px;border-radius:20px;color:#b6dcca;font-size:12px}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:28px 0}
+.card{background:#10191f;border:1px solid #34434a;padding:23px;border-radius:13px;min-height:310px}
+.label{color:#eeb485;text-transform:uppercase;letter-spacing:1px;font-size:13px;font-weight:800}
+.title{font-size:20px;margin-top:16px;font-weight:750}small{color:#9cabb4}
+.source{padding:11px;margin:12px 0;border:1px solid #283e41;border-radius:8px;color:#c4d1d2;font-size:13px;line-height:1.5}
+button{border:0;background:#a9e9bb;color:#0c251e;padding:15px 23px;font-weight:800;border-radius:10px;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}
+select{background:#12202a;color:white;padding:13px;border:1px solid #506269;border-radius:9px}
+.line{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:20px}
+pre{background:#080d12;border:1px solid #24363e;border-radius:10px;padding:20px;min-height:175px;white-space:pre-wrap;overflow-wrap:anywhere;color:#b9ddc7;font:13px/1.6 monospace}
+.warning{font-size:13px;color:#f1c997;border-left:3px solid #e2aa78;padding:8px 15px;margin-top:25px}
+footer{margin-top:30px;border-top:1px solid #263640;padding-top:14px;font-size:12px;color:#8f9c9f}
+@media(max-width:800px){.layout{grid-template-columns:1fr}.wrap{padding:22px}h1{font-size:30px}}
+</style></head><body><div class="wrap">
+<header><div class="brand">SIMPLISAINS / SIAS <span style="color:#8ba6ac"> · LIVE INFERENCE TESTBENCH</span></div>
+<div class="tag" id="status">Checking Nebius...</div></header>
+<h1>Nemotron Evidence Crew</h1>
+<p>Independent verification for a real AI science-media company. This sidecar receives a scientific claim and source excerpts, calls NVIDIA Nemotron through Nebius Token Factory, and returns an evidence-grounded editorial verdict.</p>
+<div class="layout">
+<div class="card"><div class="label">01 / Research claim and sources</div><div class="title" id="claim">Loading claim...</div><div id="sources"></div>
+<div class="warning">Fixed science example from the SIAS black-hole episode. No fabricated citations or live source-fetch claims.</div></div>
+<div class="card"><div class="label">02 / Verification agent</div><div class="title">NVIDIA Nemotron · Nebius Token Factory</div>
+<p>Choose a model and run a live scientific-evidence review. Runtime calls require valid API credentials; unavailable credentials do not produce a simulated success.</p>
+<div class="line"><select id="model"><option value="nano">Nemotron 3 Nano — efficient review</option><option value="super">Nemotron 3 Super — deeper reasoning</option></select>
+<button id="run" onclick="verify()">Run live verification →</button></div>
+<p id="remaining"></p><pre id="result">No model inference has been completed in this session.</pre></div>
+</div>
+<footer>Source repository · MIT-licensed hackathon extension. SIAS existing production remains unchanged. Any model verdict requires independent scientific judgment before publication.</footer></div>
+<script>
+let ready=false;
+async function init(){
+ let [s,c]=await Promise.all([fetch('/api/status').then(r=>r.json()),fetch('/api/case').then(r=>r.json())]);
+ ready=s.ready&&s.calls_left>0;
+ document.getElementById('status').textContent=ready?'● Nebius API ready':'○ API access not configured';
+ document.getElementById('status').style.color=ready?'#b6ffd6':'#f1c997';
+ document.getElementById('remaining').textContent='Remaining controlled live inference calls: '+s.calls_left;
+ document.getElementById('run').disabled=!ready;
+ document.getElementById('claim').textContent=c.claim;
+ document.getElementById('sources').innerHTML='';
+ c.sources.forEach((src,i)=>{let div=document.createElement('div');div.className='source';
+ div.textContent='['+(i+1)+'] '+src.title+' — '+src.excerpt;document.getElementById('sources').appendChild(div);});
+}
+async function verify(){
+ const button=document.getElementById('run');button.disabled=true;
+ document.getElementById('result').textContent='Running verified NVIDIA inference on Nebius ...';
+ try{
+  const r=await fetch('/api/verify',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({variant:document.getElementById('model').value})});
+  const data=await r.json();
+  document.getElementById('result').textContent=JSON.stringify(data,null,2);
+ }catch(ex){document.getElementById('result').textContent=String(ex)}
+ await init();
+}
+init();
+</script></body></html>
