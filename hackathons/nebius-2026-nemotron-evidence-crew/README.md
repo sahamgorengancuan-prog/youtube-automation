@@ -8,7 +8,7 @@ SIAS (SimpliSains) is an existing agent-operated science media company. Its rese
 
 A scientific claim, with source snippets and source IDs, is sent to NVIDIA Nemotron through **Nebius Token Factory** via its OpenAI-compatible chat-completion endpoint. The response is verified against an output contract: supported/contradicted/insufficient_evidence, confidence, cited source IDs, explanation and a safer suggested revision.
 
-- Nano: **nvidia/nvidia-nemotron-3-nano-30b-a3b** for frequent economical checks.
+- Nano: **nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B** for frequent economical checks.
 - Super: **nvidia/nemotron-3-super-120b-a12b** for optional advanced reasoning.
 - Hosted by **Nebius Token Factory**, API base https://api.tokenfactory.nebius.com/v1.
 
@@ -53,3 +53,7 @@ No keys or .env files should be committed. The demo binds to loopback and implem
 ## License
 
 The files inside this hackathon module are MIT-licensed (see LICENSE). The license does not implicitly relicense other files elsewhere in the pre-existing repository.
+
+## First verified live Token Factory UAT (2026-10-20)
+
+The first authenticated NVIDIA Nemotron Nano inference through Nebius Token Factory completed successfully using the sample gravitational-time-dilation claim. The runtime returned a `supported` verdict, 270 prompt tokens, 362 completion tokens (632 total), and 20,772 ms end-to-end latency. An actual response ID was returned and the sanitized result was saved only in the isolated UAT workspace. The six unit tests also pass. These values describe one inference call, **not** a general accuracy benchmark or verified cost improvement. Production SIAS was unchanged.
