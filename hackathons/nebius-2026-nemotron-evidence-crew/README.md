@@ -54,6 +54,6 @@ No keys or .env files should be committed. The demo binds to loopback and implem
 
 The files inside this hackathon module are MIT-licensed (see LICENSE). The license does not implicitly relicense other files elsewhere in the pre-existing repository.
 
-## First verified live Token Factory UAT (2026-10-20)
+## Benchmarked live results (20 October 2026)
 
-The first authenticated NVIDIA Nemotron Nano inference through Nebius Token Factory completed successfully using the sample gravitational-time-dilation claim. The runtime returned a `supported` verdict, 270 prompt tokens, 362 completion tokens (632 total), and 20,772 ms end-to-end latency. An actual response ID was returned and the sanitized result was saved only in the isolated UAT workspace. The six unit tests also pass. These values describe one inference call, **not** a general accuracy benchmark or verified cost improvement. Production SIAS was unchanged.
+The first **20 authenticated Nebius inference calls** (five fixed science claims on Nano and Super, two prompt iterations) produced measured token usage and latency. See [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) and run `python3 benchmark_runner.py` with your own Nebius API key. On second iteration, Super returned valid structured results in 5/5 test cases and Nano in 4/5; the difference reveals real-world schema reliability trade-offs, not a definitive scientific accuracy ranking. Rates and inference costs are explicitly estimated and are not compared as proof of end-to-end SIAS savings. The live web app shows real Nemotron verdicts and tokens.
