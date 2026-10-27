@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="description" content="SIAS Taste-to-Science is an agentic cultural intelligence editor connecting Qloo cultural affinities to source-grounded science video storyboards."/>
+<title>SIAS · Taste-to-Science | Qloo Agentic Hackathon</title>
+<link rel="stylesheet" href="/style.css"/></head>
+<body>
+<div class="ambient orb1"></div><div class="ambient orb2"></div>
+<div class="shell">
+<header class="nav"><a class="brand" href="/" aria-label="SIAS home"><span class="brandmark">S<span class="branddot">.</span></span><span>SIMPLISAINS <small>AGENTIC LAB</small></span></a><div class="nav-links"><a href="#engine">The engine</a><a href="#how">How it works</a><a href="https://simplisains.site" target="_blank" rel="noopener noreferrer">SimpliSains ↗</a></div><span class="pill live-indicator" id="status">CHECKING API</span></header>
+<section class="hero">
+ <div class="eyebrow"><span class="tiny-dot"></span> QLOO AGENTIC HACKATHON 2026 <span class="slash">/</span> BUILT BY SIMPLISAINS</div>
+ <h1>What people <em>love.</em><br/>What science <span class="under">reveals.</span></h1>
+ <p class="lead">A cultural-intelligence agent that turns <strong>real taste affinities</strong> into surprising, source-grounded science stories — ready for the creative engine behind SimpliSains.</p>
+ <div class="hero-metrics"><div><strong>04</strong><span>SPECIALIST AGENTS</span></div><div><strong>03</strong><span>CULTURAL DOMAINS</span></div><div><strong>01</strong><span>EVIDENCE STANDARD</span></div></div>
+ <div class="orbitvisual" aria-hidden="true"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div><div class="planet">✳</div><div class="sat s1">♫</div><div class="sat s2">◈</div><div class="sat s3">✦</div></div>
+</section>
+<section class="panel" id="engine">
+ <div class="panelhead"><div><span class="sectiontag">01 / THE EDITOR</span><h2>Start with a cultural spark.</h2><p>Choose something your audience already loves. The agent finds real cross-domain relationships and translates them into science-led creative directions.</p></div><span class="steps">CULTURE → SCIENCE → STORY</span></div>
+ <form id="queryform" class="formbar"><div class="selector"><label for="type">CULTURAL SIGNAL</label><select id="type" name="type"><option value="movie">Film</option><option value="artist">Music artist</option><option value="book">Book</option><option value="video_game">Video game</option><option value="tv_show">TV show</option></select></div><div class="query"><label for="seed">NAME YOUR CULTURAL ANCHOR</label><input id="seed" name="seed" maxlength="80" minlength="2" required value="Interstellar" placeholder="Interstellar, Daft Punk, Minecraft..." /></div><button class="go" id="go" type="submit">EXPLORE AFFINITIES <span>↗</span></button></form>
+ <div class="suggestions"><span>TRY AN ANCHOR</span><button type="button" data-type="movie" data-seed="Interstellar">Interstellar</button><button type="button" data-type="artist" data-seed="Daft Punk">Daft Punk</button><button type="button" data-type="video_game" data-seed="Minecraft">Minecraft</button><button type="button" data-type="book" data-seed="Dune">Dune</button></div>
+ <div id="notification" class="notice" role="status" aria-live="polite">The live API will be enabled once Qloo issues the hackathon key. No cultural result will be simulated.</div>
+</section>
+<section class="results" id="results-section">
+ <div class="section-heading"><div><span class="sectiontag">02 / CULTURAL SIGNALS</span><h2>Not random. <em>Related.</em></h2><p id="results-intro">Live results, when available, come directly from Qloo’s cultural taste graph.</p></div><span class="live-tag" id="live-tag">LIVE INTEGRATION PENDING</span></div>
+ <div id="affinities" class="affinities empty-result"><div class="empty-symbol">◎</div><h3>No invented recommendations</h3><p>Enter a cultural anchor. Once API access is issued, real Qloo movie, artist and book affinities will appear here.</p></div>
+</section>
+<section class="story-section">
+ <div class="section-heading"><div><span class="sectiontag">03 / SCIENCE STORIES</span><h2>Where curiosity <em>begins.</em></h2><p>Cross-domain cultural references become science video hooks, factual statements, visual beats and independent evidence links.</p></div><button type="button" class="export" id="export" disabled>EXPORT STORYBOARD JSON ↓</button></div>
+ <div id="stories" class="stories"><article class="illustration-card"><span class="sectiontag">EDITORIAL EXAMPLE — NOT QLOO DATA</span><div class="storyinfo"><span class="topicchip">SPACE &amp; GRAVITY</span><h3>Can gravity really bend starlight?</h3><p>A cultural science concept for an Interstellar-inspired audience, using a NASA scientific reference. This example is not an API response or a generated result.</p><a target="_blank" rel="noopener noreferrer" href="https://science.nasa.gov/universe/galaxies/gravitational-lensing/">NASA SCIENCE REFERENCE ↗</a></div><div class="visual-stripes"><div class="visual-star">✧</div></div></article></div>
+</section>
+<section id="how" class="how"><span class="sectiontag">04 / THE AGENT SYSTEM</span><h2>One creative brief.<br/><em>Four specialist decisions.</em></h2><div class="agents"><div class="agent"><span class="num">01</span><b>TASTE SCOUT</b><p>Resolve an actual cultural entity using Qloo Search.</p></div><div class="agent"><span class="num">02</span><b>AFFINITY EXPLORER</b><p>Discover relationships across film, artists and books through Qloo Insights.</p></div><div class="agent"><span class="num">03</span><b>SCIENCE ARCHITECT</b><p>Build short-form concepts and shot-level story beats.</p></div><div class="agent"><span class="num">04</span><b>EVIDENCE STEWARD</b><p>Attach independent science references before editorial handoff.</p></div></div><div class="trace" id="trace"><span class="sectiontag">AGENT DECISION LOG</span><p>The run trace appears after a real Qloo-powered execution.</p></div></section>
+<footer><div class="footbrand">SIAS<span>.</span> <small>INTELLIGENCE IN MOTION</small></div><div>Independent hackathon demo built for <strong>Qloo Agentic Hackathon</strong>. Cultural insights are group-level patterns, not individual predictions. Science claims use independent sources.</div><div class="footlinks"><a href="https://simplisains.site">SIMPLISAINS.SITE ↗</a><a href="https://qloo.devpost.com/">QLOO HACKATHON ↗</a></div></footer>
+</div><script src="/app.js" defer></script></body></html>
