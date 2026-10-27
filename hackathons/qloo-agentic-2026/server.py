@@ -53,7 +53,7 @@ def create(seed,kind):
  mid=eid(match)
  if not mid:raise QlooError(502,"Qloo search returned an entity without a usable ID.")
  def query(domain):
-  return domain,unpack(request_qloo("/v2/insights",{"filter.type":domain,"signal.interests.entities":mid,"take":5,"feature.explainability":"true"}))
+  return domain,unpack(request_qloo("/v2/insights",{"filter.type":domain,"signal.interests.entities":mid,"take":5}))
  results=[];issues=[]
  with ThreadPoolExecutor(max_workers=3) as ex:
   tasks=[ex.submit(query,d) for d in DOMAINS]
