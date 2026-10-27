@@ -7,7 +7,7 @@ BASE=os.getenv("QLOO_BASE_URL","https://hackathon.api.qloo.com").rstrip("/")
 KEY=os.getenv("QLOO_API_KEY","")
 ROOT=Path(__file__).resolve().parent
 PORT=int(os.getenv("PORT","18679"))
-TYPES={"movie":"urn:entity:movie","artist":"urn:entity:artist","book":"urn:entity:book","video_game":"urn:entity:video_game","tv_show":"urn:entity:tv_show"}
+TYPES={"movie":"urn:entity:movie","artist":"urn:entity:artist","book":"urn:entity:book","video_game":"urn:entity:videogame","tv_show":"urn:entity:tv_show"}
 DOMAINS=("urn:entity:movie","urn:entity:artist","urn:entity:book")
 LENSES=[
 (("space","star","cosmic","moon","orbit","interstellar","astro","galaxy","alien","dune","gravity"),"Space & gravity","Can gravity really bend starlight?","Gravity can bend the path of light, producing gravitational lensing.","NASA Science","https://science.nasa.gov/universe/black-holes/","Animate starlight distorting around a massive object."),
@@ -71,7 +71,16 @@ def create(seed,kind):
  results.sort(key=lambda x:(order.get(x["category"],9),x["rank"]))
  results=results[:12];stories=[]
  for i,item in enumerate(results[:6]):
-  theme,hook,claim,source,url,visual=lens(" ".join([seed,ename(match),item["name"],item["category"]]))
+  # Prefer the actual Qloo-recommended cultural entity over the seed.
+  # This ensures individual recommendations can produce different science stories.
+  theme,hook,claim,source,url,visual=lens(item["name"])
+  if (theme,hook,claim,source,url,visual)==DEFAULT:
+   if item["category"]=="artist":
+    theme,hook,claim,source,url,visual=lens("sound music")
+   elif item["category"]=="movie":
+    theme,hook,claim,source,url,visual=lens("cinema motion")
+   else:
+    theme,hook,claim,source,url,visual=lens(seed)
   stories.append({"rank":i+1,"cultural_anchor":item["name"],"category":item["category"],"qloo_rank":item["rank"],"theme":theme,"hook":hook,"claim":claim,"source":source,"source_url":url,"visual":visual,
    "beats":[{"time":"00–03","role":"HOOK","script":hook},{"time":"03–12","role":"CULTURAL BRIDGE","script":"Connect "+ename(match)+" to "+item["name"]+" using Qloo's group-level cultural affinity."},{"time":"12–32","role":"SCIENCE EXPLAINED","script":claim},{"time":"32–45","role":"VISUAL PAYOFF","script":visual}]})
  trace=[{"agent":"Taste Scout","detail":"Qloo /search resolved "+ename(match)},{"agent":"Affinity Explorer","detail":"Queried 3 Qloo /v2/insights domains; "+str(len(results))+" cultural entities returned"},{"agent":"Science Architect","detail":"Created "+str(len(stories))+" science video treatments from live affinities"},{"agent":"Evidence Steward","detail":"Attached separate science source references; Qloo is not a science fact checker"}]
