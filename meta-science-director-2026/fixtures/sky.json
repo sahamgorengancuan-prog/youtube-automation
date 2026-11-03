@@ -1,0 +1,12 @@
+{
+  "question": "Why is the sky blue, but sunsets often look red?",
+  "audience": "Curious beginners aged 15+",
+  "source_excerpts": [
+    {
+      "id": "S1",
+      "title": "NASA Space Place — Why Is the Sky Blue?",
+      "url": "https://spaceplace.nasa.gov/blue-sky/en/",
+      "excerpt": "Sunlight is scattered by gases and particles in the atmosphere. Blue light has shorter wavelengths and is scattered more strongly. When sunlight passes through more atmosphere near sunset, more blue light scatters out of the direct path, leaving reds and yellows more prominent."
+    }
+  ]
+}
