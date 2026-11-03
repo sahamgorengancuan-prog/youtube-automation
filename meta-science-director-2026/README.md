@@ -62,6 +62,11 @@ https://spaceplace.nasa.gov/blue-sky/en/
 
 The fixture contains a short paraphrase used for testing. **Matching a source ID does not establish that a claim is scientifically true.** The current review checks JSON structure and source IDs; semantic correctness, image consistency, and human evaluation still require independent assessment.
 
+## Public demonstration
+
+- [Three-minute video walkthrough](https://github.com/sahamgorengancuan-prog/youtube-automation/blob/claude/scientific-animation-studio-mvp-65rpn4/meta-science-director-2026/assets/SIAS_Meta_Offline_Demo_Walkthrough_180s.mp4) (honest offline presentation, no voiceover)
+- [Temporary live web preview](https://vault-gmc-glasgow-ali.trycloudflare.com/) (offline fixture; may expire when the tunnel closes)
+
 ## Demo transparency
 
 The offline preview is intentionally marked **PREVIEW_ONLY**, and reports `meta_inference_calls: 0`. The demo should not be represented as actual Muse Spark generation. Only verified `run_live.py` outputs may support live-model claims.
@@ -72,8 +77,8 @@ The offline preview is intentionally marked **PREVIEW_ONLY**, and reports `meta_
 - [x] 17 local automated tests
 - [x] Optional Meta Model API integration code
 - [ ] Successful live Muse Spark response and measured metrics
-- [ ] Public GitHub repository URL
-- [ ] 3-minute project demonstration video URL
+- [x] Public GitHub repository folder URL
+- [x] Three-minute captioned offline video walkthrough (no Muse inference; linked below)
 - [ ] Cerebral Valley authenticated final submission confirmation
 
 ## Open source
