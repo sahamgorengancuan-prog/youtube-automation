@@ -56,8 +56,19 @@ card(d,76,347,1126,228,"NASA SPACE PLACE / SOURCE S1",[
 ],"#204466")
 save(im,4)
 
-im,d=frame("Interactive preview","A real local web application.","Screenshot of the running offline UI, not a Meta model result.",5)
-shot=Image.open(A/"preview_full.png").convert("RGB")
+preview_png=A/"preview_full.png"
+if preview_png.exists():
+    shot=Image.open(preview_png).convert("RGB")
+    description="Local UI screenshot (offline only), not a Meta model result."
+else:
+    shot=Image.new("RGB",(1366,768),(245,248,252))
+    pd=ImageDraw.Draw(shot)
+    pd.rounded_rectangle((140,98,1220,570),radius=32,fill=(13,27,49))
+    pd.text((200,150),"SimpliSains Science Director",font=f(43,True),fill=(255,255,255))
+    pd.text((200,225),"Open showcase_server.py for the real offline UI",font=f(28),fill=(190,217,250))
+    pd.text((200,310),"Citation -> storyboard -> independent critic",font=f(22),fill=(104,203,186))
+    description="Reconstructed layout; run local server for actual UI."
+im,d=frame("Interactive preview","A real local web application.",description,5)
 shot.thumbnail((1000,430))
 d.rounded_rectangle((112,310,1170,602),radius=14,fill="#24395D")
 im.paste(shot.crop((0,0,shot.width, min(shot.height,720))).resize((1015,570)).crop((0,0,1015,267)),(132,325))
