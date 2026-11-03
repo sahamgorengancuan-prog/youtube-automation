@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.log
+*.sqlite
+*.db
+*.secret
+*.key
+live_result.local.json
+runs/
+demo_capture/
+*.mp4
+.DS_Store
