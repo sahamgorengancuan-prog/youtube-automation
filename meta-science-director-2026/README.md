@@ -9,7 +9,7 @@ Science Director explores evidence-grounded short-form science storytelling usin
 - **Offline web preview:** Python stdlib HTTP server, scene visualizations and citations for a published science question.
 - **Workflow implementation:** `core.py` validates evidence identifiers, storyboard structures, critic outputs, revision limits, and fails closed on fabricated evidence IDs.
 - **Optional Meta Model API adapter:** `meta_adapter.py` integrates with the documented OpenAI-compatible chat-completions protocol, using `muse-spark-1.3` and a user-provided `MODEL_API_KEY`. This path **has not been independently verified with a successful live response** as of November 3, 2026.
-- **Automated regression tests:** 17 unit tests passed locally on Python 3.10.
+- **Automated regression tests:** 20 unit tests passed locally on Python 3.12.
 - **Safety boundary:** The public web preview never loads API keys or makes paid inference calls.
 
 ## Quick start — no key required
@@ -23,6 +23,16 @@ python3 showcase_server.py
 ```
 
 Requires Python 3.10+. The offline demo has no external dependencies.
+
+## Zero-generation authentication check
+
+Run a read-only model catalogue request in a trusted environment after securely supplying your Meta key as `MODEL_API_KEY`:
+
+```bash
+python3 verify_model_access.py
+```
+
+The command queries only `GET /v1/models`, reports whether Muse Spark 1.3 is listed, and never prints the key. A successful check verifies API access, **not** quality of generated responses, account balance, or eligibility. The built-in unit tests use mocked clients and never contact Meta.
 
 ## Optional Muse Spark test
 
@@ -74,7 +84,7 @@ The offline preview is intentionally marked **PREVIEW_ONLY**, and reports `meta_
 ## Submission checklist
 
 - [x] Locally running independent offline prototype
-- [x] 17 local automated tests
+- [x] 20 local automated tests
 - [x] Optional Meta Model API integration code
 - [ ] Successful live Muse Spark response and measured metrics
 - [x] Public GitHub repository folder URL
