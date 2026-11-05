@@ -4,6 +4,12 @@
 
 **CereX OfficeOps** explores how a language agent can ask a computer to perform an auditable office task instead of simply explaining how to do it. This public demonstration includes a narrow, fixture-only tool server, synthetic purchase-order/invoice data, deterministic validation and reconciliation, exception evidence, and a human approval checkpoint.
 
+### Video walkthrough (offline proof, no WorkBuddy model call)
+
+[Watch the 127-second CereX OfficeOps UAT walkthrough](https://github.com/sahamgorengancuan-prog/youtube-automation/blob/competition/cerex-officeops-2026/cerex-officeops-2026/assets/CereX_OfficeOps_Offline_UAT_20261105.mp4) — honest captioned dashboard recording, H.264 1280x720, based on observed CereX runtime test results. This is NOT a recording of an authenticated WorkBuddy tool call.
+
+A temporary interactive evidence dashboard may also be available at [CereX OfficeOps preview](https://grain-him-clock-production.trycloudflare.com/dashboard). Its Cloudflare tunnel is ephemeral and is not a permanent competition submission URL.
+
 ### What the public demo actually does
 
 1. Accepts a single MCP request named `cerex_officeops_reconcile_fixture`.
