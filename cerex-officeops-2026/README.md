@@ -6,6 +6,8 @@
 
 ### Video walkthrough (offline proof, no WorkBuddy model call)
 
+**[Recommended narrated walkthrough (127 seconds)](https://github.com/sahamgorengancuan-prog/youtube-automation/blob/competition/cerex-officeops-2026/cerex-officeops-2026/assets/CereX_OfficeOps_Narrated_UAT_20261105.mp4)** — English voiceover added to recorded CereX UAT screens. Narration states that no authenticated WorkBuddy execution has yet been demonstrated.
+
 [Watch the 127-second CereX OfficeOps UAT walkthrough](https://github.com/sahamgorengancuan-prog/youtube-automation/blob/competition/cerex-officeops-2026/cerex-officeops-2026/assets/CereX_OfficeOps_Offline_UAT_20261105.mp4) — honest captioned dashboard recording, H.264 1280x720, based on observed CereX runtime test results. This is NOT a recording of an authenticated WorkBuddy tool call.
 
 A temporary interactive evidence dashboard may also be available at [CereX OfficeOps preview](https://grain-him-clock-production.trycloudflare.com/dashboard). Its Cloudflare tunnel is ephemeral and is not a permanent competition submission URL.
